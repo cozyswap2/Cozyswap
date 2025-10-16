@@ -140,7 +140,7 @@ const CHAIN_ID_HEX = '0x2611';
 const ROUTER = '0x89E695B38610e78a77Fb310458Dfd855505AD239';
 const FACTORY = '0xa252e44D3478CeBb1a3D59C9146CD860cb09Ec93';
 const WXPL = '0x6100E367285b01F48D07953803A2d8dCA5D19873';
-const SCAN_BASE = 'https://plasmascan.to/tx/'; // user confirmed
+const SCAN_BASE = 'https://plasmascan.to/tx/';
 
 const DEFAULT_TOKENS = [
   { symbol: 'XPL', address: 'XPL_NATIVE', decimals: 18 },
@@ -241,14 +241,8 @@ function renderTxHistory(){
   txHistory.forEach(t=>{
     const el = document.createElement('div');
     el.innerHTML = `<div><a class="tx-link" data-h="${t.hash}">${shortAddr(t.hash)} · ${t.label || 'tx'}</a> <span class="muted small">(${new Date(t.ts*1000).toLocaleTimeString()})</span></div>`;
-    el.querySelector('a').onclick = (e)=>{ const h=e.currentTarget.getAttribute('data-h'); if(h) location.href = '${SCAN_BASE}'.replace('${SCAN_BASE}','') + ''; };
-    // Above couldn't insert dynamic inside, we'll set onclick below properly
+    el.querySelector('a').onclick = (e)=>{ const h=e.currentTarget.getAttribute('data-h'); if(h) location.href = SCAN_BASE + h; };
     txHistoryList.appendChild(el);
-  });
-  // correct click binding (safer)
-  const links = txHistoryList.querySelectorAll('a.tx-link');
-  links.forEach(a=>{
-    a.onclick = (e)=>{ const h = e.currentTarget.getAttribute('data-h'); if(h) location.href = SCAN_BASE + h; };
   });
 }
 
@@ -284,8 +278,25 @@ function bindUI(){
   addCustomB.onclick = ()=>promptAddCustom();
   createTokenA.onchange = ()=>updateCreateBalances();
   createTokenB.onchange = ()=>updateCreateBalances();
-  createAmountA.addEventListener('input', debounce(()=>{ syncCreateBFromA(); },300));
-  createAmountB.addEventListener('input', debounce(()=>{ syncCreateAFromB(); },300));
+  
+  // FIX: Prevent recursive syncing by tracking which input is being actively edited
+  let syncing = false;
+  createAmountA.addEventListener('input', debounce(()=>{
+    if (!syncing) {
+      syncing = true;
+      syncCreateBFromA();
+      setTimeout(() => { syncing = false; }, 100);
+    }
+  },300));
+  
+  createAmountB.addEventListener('input', debounce(()=>{
+    if (!syncing) {
+      syncing = true;
+      syncCreateAFromB();
+      setTimeout(() => { syncing = false; }, 100);
+    }
+  },300));
+  
   btnCreatePool.onclick = ()=>createPoolFlow();
   btnApproveCreate.onclick = ()=>approveBothForCreate();
 }
@@ -364,49 +375,62 @@ async function safeSymbol(address){
 }
 
 /* ============================
-  Sync amounts (use pair reserves)
+  Sync amounts (use pair reserves) - FIXED VERSION
    ============================ */
 async function syncCreateBFromA(){
   try{
     const aAddr=createTokenA.value, bAddr=createTokenB.value;
-    if(!createAmountA.value){ createAmountB.value=''; return; }
+    if(!createAmountA.value){ return; } // Don't clear B when A is empty
+    
     const onA = aAddr==='XPL_NATIVE'?WXPL:aAddr, onB = bAddr==='XPL_NATIVE'?WXPL:bAddr;
     const pairAddr = await factoryContract.getPair(onA, onB);
-    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){ createAmountB.value=''; return; }
+    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){ return; } // Don't clear B if no pair
+    
     const pair=new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
-    const reserves=await pair.getReserves(); const token0 = await pair.token0();
+    const reserves=await pair.getReserves(); 
+    const token0 = await pair.token0();
     let reserveA=reserves[0], reserveB=reserves[1];
     if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA=reserves[1]; reserveB=reserves[0]; }
+    
     const decA = aAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(aAddr, ERC20_ABI, provider)).decimals();
     const decB = bAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(bAddr, ERC20_ABI, provider)).decimals();
+    
     const inA = ethersLib.utils.parseUnits(createAmountA.value||'0', decA);
     if(reserveA.isZero()) return;
+    
     const outB = reserveB.mul(inA).div(reserveA);
     createAmountB.value = ethersLib.utils.formatUnits(outB, decB);
   }catch(e){ console.warn('syncCreateBFromA', e); }
 }
+
 async function syncCreateAFromB(){
   try{
     const aAddr=createTokenA.value, bAddr=createTokenB.value;
-    if(!createAmountB.value){ createAmountA.value=''; return; }
+    if(!createAmountB.value){ return; } // Don't clear A when B is empty
+    
     const onA = aAddr==='XPL_NATIVE'?WXPL:aAddr, onB = bAddr==='XPL_NATIVE'?WXPL:bAddr;
     const pairAddr = await factoryContract.getPair(onA, onB);
-    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){ createAmountA.value=''; return; }
+    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){ return; } // Don't clear A if no pair
+    
     const pair=new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
-    const reserves=await pair.getReserves(); const token0 = await pair.token0();
+    const reserves=await pair.getReserves(); 
+    const token0 = await pair.token0();
     let reserveA=reserves[0], reserveB=reserves[1];
     if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA=reserves[1]; reserveB=reserves[0]; }
+    
     const decA = aAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(aAddr, ERC20_ABI, provider)).decimals();
     const decB = bAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(bAddr, ERC20_ABI, provider)).decimals();
+    
     const inB = ethersLib.utils.parseUnits(createAmountB.value||'0', decB);
     if(reserveB.isZero()) return;
+    
     const outA = reserveA.mul(inB).div(reserveB);
     createAmountA.value = ethersLib.utils.formatUnits(outA, decA);
   }catch(e){ console.warn('syncCreateAFromB', e); }
 }
 
 /* ============================
-  Approve & create pool (same as before)
+  Approve & create pool
    ============================ */
 async function approveBothForCreate(){
   try{
@@ -591,7 +615,7 @@ async function renderMyPools(){
 }
 
 /* ============================
-  Pool Manager injection (with fixes)
+  Pool Manager injection
    ============================ */
 async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false){
   try{
@@ -669,34 +693,39 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
     }
     await refreshBalances();
 
-    // autofill A->B and B->A
+    // FIX: Prevent recursive syncing in pool manager too
+    let pmSyncing = false;
     pmA.addEventListener('input', debounce(async ()=>{
       try{
+        if (pmSyncing) return;
+        pmSyncing = true;
         const v = pmA.value || '0';
-        if(!v || Number(v) === 0){ pmB.value = ''; return; }
+        if(!v || Number(v) === 0){ pmB.value = ''; pmSyncing = false; return; }
         const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
         const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
         const inA = ethersLib.utils.parseUnits(v||'0', decA);
-        if(reserveA.isZero()) return;
+        if(reserveA.isZero()) { pmSyncing = false; return; }
         const outB = reserveB.mul(inA).div(reserveA);
         pmB.value = ethersLib.utils.formatUnits(outB, decB);
-      }catch(e){ console.warn('pm autofill A->B', e); }
+        setTimeout(() => { pmSyncing = false; }, 100);
+      }catch(e){ console.warn('pm autofill A->B', e); pmSyncing = false; }
     }, 300));
 
     pmB.addEventListener('input', debounce(async ()=>{
       try{
+        if (pmSyncing) return;
+        pmSyncing = true;
         const v = pmB.value || '0';
-        if(!v || Number(v) === 0){ pmA.value = ''; return; }
+        if(!v || Number(v) === 0){ pmA.value = ''; pmSyncing = false; return; }
         const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
         const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
         const inB = ethersLib.utils.parseUnits(v||'0', decB);
-        if(reserveB.isZero()) return;
+        if(reserveB.isZero()) { pmSyncing = false; return; }
         const outA = reserveA.mul(inB).div(reserveB);
         pmA.value = ethersLib.utils.formatUnits(outA, decA);
-      }catch(e){ console.warn('pm autofill B->A', e); }
+        setTimeout(() => { pmSyncing = false; }, 100);
+      }catch(e){ console.warn('pm autofill B->A', e); pmSyncing = false; }
     }, 300));
-
-
 
     // percent buttons
     manager.querySelectorAll('.pct').forEach(btn=>btn.addEventListener('click', async ()=>{
@@ -716,15 +745,13 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
       }catch(e){ console.warn('pctB', e); }
     }));
 
-    // swap A/B button (FIX implemented)
+    // swap A/B button
     swapAB.addEventListener('click', async ()=>{
-      // swap meta & fields: symbol labels are static, we swap values in inputs and balances
       const tmpVal = pmA.value; pmA.value = pmB.value; pmB.value = tmpVal;
-      // swap balance text
       const tmpBal = pmBalA.innerText; pmBalA.innerText = pmBalB.innerText; pmBalB.innerText = tmpBal;
     });
 
-    // Add liquidity (works same but after success add to tx history (clickable) and not auto closing)
+    // Add liquidity
     pmAdd.addEventListener('click', async ()=>{
       try{
         if(!window.ethereum) return alert('Connect wallet first');
@@ -762,12 +789,10 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
           tx = await routerS.addLiquidity(onA, onB, amountA, amountB, 0, 0, owner, deadline);
         }
         pmMsg.innerHTML = `Tx sent: <a class="tx-link" data-h="${tx.hash}">${shortAddr(tx.hash)}</a>`;
-        // bind click
         pmMsg.querySelector('a.tx-link').onclick = (e)=>{ const h=e.currentTarget.getAttribute('data-h'); if(h) location.href = SCAN_BASE + h; };
         addTxToHistory(tx.hash, 'addLiquidity');
         await tx.wait();
         pmMsg.innerText = 'Liquidity added: ' + tx.hash;
-        // refresh my pools
         await renderMyPools();
       }catch(e){ console.error('pmAdd err', e); alert('Add failed: ' + (e.message||e)); pmMsg.innerText = 'Add failed'; }
     });
@@ -861,7 +886,6 @@ function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTim
   saveLS(LS_TXS, txHistory);
 })();
 
-/* render tx history on page load (function defined earlier) */
 renderTxHistory();
 
 </script>
