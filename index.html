@@ -670,31 +670,77 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
     await refreshBalances();
 
     // autofill A->B and B->A
-    pmA.addEventListener('input', debounce(async ()=>{
-      try{
-        const v = pmA.value || '0';
-        if(!v || Number(v) === 0){ pmB.value = ''; return; }
-        const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
-        const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
-        const inA = ethersLib.utils.parseUnits(v||'0', decA);
-        if(reserveA.isZero()) return;
-        const outB = reserveB.mul(inA).div(reserveA);
-        pmB.value = ethersLib.utils.formatUnits(outB, decB);
-      }catch(e){ console.warn('pm autofill A->B', e); }
-    }, 300));
+    // ✅ Fix autofill (support both new + existing pair)
+let isSyncing = false;
 
-    pmB.addEventListener('input', debounce(async ()=>{
-      try{
-        const v = pmB.value || '0';
-        if(!v || Number(v) === 0){ pmA.value = ''; return; }
-        const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
-        const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
-        const inB = ethersLib.utils.parseUnits(v||'0', decB);
-        if(reserveB.isZero()) return;
-        const outA = reserveA.mul(inB).div(reserveB);
-        pmA.value = ethersLib.utils.formatUnits(outA, decA);
-      }catch(e){ console.warn('pm autofill B->A', e); }
-    }, 300));
+pmA.addEventListener('input', debounce(async ()=>{
+  if(isSyncing) return;
+  try{
+    const v = pmA.value || '0';
+    if(!v || Number(v) === 0){ pmB.value = ''; return; }
+
+    // 🔹 Check if pair exists
+    const pairAddress = await factory.getPair(metaAf.address, metaBf.address);
+    if(pairAddress === ethersLib.constants.AddressZero) {
+      // Pair belum ada → biarkan user isi manual
+      return;
+    }
+
+    // 🔹 Fetch reserves agar pasti fresh
+    const pair = new ethersLib.Contract(pairAddress, PAIR_ABI, provider);
+    const [rA, rB] = await pair.getReserves();
+    if(rA.isZero() || rB.isZero()) return;
+
+    const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
+    const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
+    const inA = ethersLib.utils.parseUnits(v||'0', decA);
+    const outB = rB.mul(inA).div(rA);
+
+    // 🔒 prevent input loop
+    isSyncing = true;
+    pmB.value = ethersLib.utils.formatUnits(outB, decB);
+    isSyncing = false;
+
+  }catch(e){
+    console.warn('pm autofill A->B', e);
+    isSyncing = false;
+  }
+}, 300));
+
+
+pmB.addEventListener('input', debounce(async ()=>{
+  if(isSyncing) return;
+  try{
+    const v = pmB.value || '0';
+    if(!v || Number(v) === 0){ pmA.value = ''; return; }
+
+    // 🔹 Check if pair exists
+    const pairAddress = await factory.getPair(metaAf.address, metaBf.address);
+    if(pairAddress === ethersLib.constants.AddressZero) {
+      // Pair belum ada → biarkan user isi manual
+      return;
+    }
+
+    // 🔹 Fetch reserves agar pasti fresh
+    const pair = new ethersLib.Contract(pairAddress, PAIR_ABI, provider);
+    const [rA, rB] = await pair.getReserves();
+    if(rA.isZero() || rB.isZero()) return;
+
+    const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
+    const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
+    const inB = ethersLib.utils.parseUnits(v||'0', decB);
+    const outA = rA.mul(inB).div(rB);
+
+    // 🔒 prevent input loop
+    isSyncing = true;
+    pmA.value = ethersLib.utils.formatUnits(outA, decA);
+    isSyncing = false;
+
+  }catch(e){
+    console.warn('pm autofill B->A', e);
+    isSyncing = false;
+  }
+}, 300));
 
 
 
