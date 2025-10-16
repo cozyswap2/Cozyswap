@@ -670,17 +670,21 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
     await refreshBalances();
 
     // autofill A->B and B->A
+    // ✅ Fix autofill (support create pool / new pair)
+let isSyncing = false; // cegah event saling panggil
+
 pmA.addEventListener('input', debounce(async ()=>{
+  if(isSyncing) return;
   try{
     const v = pmA.value || '0';
 
-    // 🔹 Deteksi apakah pool baru (belum ada pair)
     const pairAddress = await factory.getPair(metaAf.address, metaBf.address);
     const isNewPair = pairAddress === ethersLib.constants.AddressZero;
 
     // 🔹 Jika pool baru, biarkan user isi manual tanpa reset
-    if(!v || Number(v) === 0){ if(!isNewPair) pmB.value = ''; return; }
     if(isNewPair) return;
+
+    if(!v || Number(v) === 0){ pmB.value = ''; return; }
 
     const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
     const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
@@ -688,22 +692,30 @@ pmA.addEventListener('input', debounce(async ()=>{
 
     if(reserveA.isZero()) return;
     const outB = reserveB.mul(inA).div(reserveA);
+
+    // 🔒 hindari loop event
+    isSyncing = true;
     pmB.value = ethersLib.utils.formatUnits(outB, decB);
-  }catch(e){ console.warn('pm autofill A->B', e); }
+    isSyncing = false;
+  }catch(e){ 
+    console.warn('pm autofill A->B', e); 
+    isSyncing = false;
+  }
 }, 300));
 
 
 pmB.addEventListener('input', debounce(async ()=>{
+  if(isSyncing) return;
   try{
     const v = pmB.value || '0';
 
-    // 🔹 Deteksi apakah pool baru (belum ada pair)
     const pairAddress = await factory.getPair(metaAf.address, metaBf.address);
     const isNewPair = pairAddress === ethersLib.constants.AddressZero;
 
     // 🔹 Jika pool baru, biarkan user isi manual tanpa reset
-    if(!v || Number(v) === 0){ if(!isNewPair) pmA.value = ''; return; }
     if(isNewPair) return;
+
+    if(!v || Number(v) === 0){ pmA.value = ''; return; }
 
     const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
     const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
@@ -711,9 +723,17 @@ pmB.addEventListener('input', debounce(async ()=>{
 
     if(reserveB.isZero()) return;
     const outA = reserveA.mul(inB).div(reserveB);
+
+    // 🔒 hindari loop event
+    isSyncing = true;
     pmA.value = ethersLib.utils.formatUnits(outA, decA);
-  }catch(e){ console.warn('pm autofill B->A', e); }
+    isSyncing = false;
+  }catch(e){ 
+    console.warn('pm autofill B->A', e); 
+    isSyncing = false;
+  }
 }, 300));
+
 
 
     // percent buttons
