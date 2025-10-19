@@ -14,6 +14,34 @@
   .btn-grad{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:white}
   .rounded-full-img{width:48px;height:48px;border-radius:50%;object-fit:cover}
   a.tx-link{color:#66b2ff;text-decoration:underline;cursor:pointer}
+  .token-logo{width:36px;height:36px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:10px;border:1px solid rgba(255,255,255,0.04)}
+  .token-logo-small{width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px;border:1px solid rgba(255,255,255,0.04)}
+  .pair-symbol{font-weight:600;margin-left:8px}
+  /* Toast */
+  #toast-wrap{position:fixed;right:20px;bottom:22px;z-index:9999;}
+  .toast{min-width:220px;padding:12px 16px;border-radius:10px;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.4);display:flex;align-items:center;gap:10px}
+  .toast.success{background:#2fa84f}
+  .toast.error{background:#b33a3a}
+  .toast .ico{font-size:18px}
+
+  /* Modal token list */
+  .tk-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:flex-end;justify-content:center;padding:12px}
+  .tk-modal{width:100%;max-width:520px;background:linear-gradient(180deg, #0f1113, #0b0b0d);border-radius:18px;padding:10px 8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);max-height:85vh;overflow:auto}
+  .tk-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);margin-bottom:8px}
+  .tk-search{width:100%;padding:8px 10px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:inherit}
+  .tk-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;margin:6px 4px;cursor:pointer}
+  .tk-item:hover{background:rgba(255,255,255,0.02)}
+  .tk-left{display:flex;align-items:center;gap:8px}
+  .copy-btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:6px 8px;border-radius:8px;cursor:pointer}
+  /* desktop center modal */
+  @media(min-width:768px){
+    .tk-overlay{align-items:center}
+    .tk-modal{border-radius:12px}
+  }
+
+  /* small ui helpers */
+  .select-btn{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:transparent;width:100%}
+  .select-label{display:flex;align-items:center;gap:8px}
 </style>
 </head>
 <body class="p-4">
@@ -89,7 +117,13 @@
           <div>
             <label class="small muted">Token A</label>
             <div class="flex gap-2 mt-2">
-              <select id="createTokenA" class="flex-1 bg-transparent border rounded-lg px-3 py-2"></select>
+              <!-- Hidden select kept for compatibility with existing logic -->
+              <select id="createTokenA" class="hidden"></select>
+              <input type="hidden" id="createTokenAVal" />
+              <button id="createTokenAbtn" class="select-btn" aria-haspopup="dialog" aria-controls="tokenModal">
+                <div class="select-label"><img id="createTokenAlogo" src="assets/default.png" class="token-logo-small"/><div id="createTokenAlabel">Select token</div></div>
+                <div>▾</div>
+              </button>
               <button id="addCustomA" class="px-3 py-2 border rounded-lg muted">＋</button>
             </div>
             <div id="balCreateA" class="muted small mt-1">Balance: —</div>
@@ -100,7 +134,12 @@
           <div>
             <label class="small muted">Token B</label>
             <div class="flex gap-2 mt-2">
-              <select id="createTokenB" class="flex-1 bg-transparent border rounded-lg px-3 py-2"></select>
+              <select id="createTokenB" class="hidden"></select>
+              <input type="hidden" id="createTokenBVal" />
+              <button id="createTokenBbtn" class="select-btn" aria-haspopup="dialog" aria-controls="tokenModal">
+                <div class="select-label"><img id="createTokenBlogo" src="assets/default.png" class="token-logo-small"/><div id="createTokenBlabel">Select token</div></div>
+                <div>▾</div>
+              </button>
               <button id="addCustomB" class="px-3 py-2 border rounded-lg muted">＋</button>
             </div>
             <div id="balCreateB" class="muted small mt-1">Balance: —</div>
@@ -139,6 +178,25 @@
     <a href="privacy.html" style="color:#58a6ff; text-decoration:none;">Privacy Policy</a>
   </p>
 </footer>
+
+<!-- Toast wrapper -->
+<div id="toast-wrap"></div>
+
+<!-- Token modal (hidden by default) -->
+<div id="tokenModal" style="display:none" aria-hidden="true">
+  <div class="tk-overlay" id="tkOverlay">
+    <div class="tk-modal" role="dialog" aria-modal="true" aria-labelledby="tkTitle">
+      <div class="tk-header">
+        <div style="font-weight:600" id="tkTitle">Select a token</div>
+        <button id="tkClose" class="px-3 py-1 border rounded">Close</button>
+      </div>
+      <div style="padding:8px">
+        <input id="tkSearch" class="tk-search" placeholder="Search token symbol or address"/>
+      </div>
+      <div id="tokenList" style="padding:8px"></div>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ============================
@@ -219,7 +277,18 @@ const positionsList = document.getElementById('positionsList'), noPositionsMsg =
 const importBoxQuick = document.getElementById('importBoxQuick'), importAddrQuick = document.getElementById('importAddrQuick'), doImportQuick = document.getElementById('doImportQuick'), importQuickMsg = document.getElementById('importQuickMsg'), cancelImportQuick = document.getElementById('cancelImportQuick');
 const popularList = document.getElementById('popularList');
 const btnCreateQuick = document.getElementById('btnCreateQuick'), btnImportQuick = document.getElementById('btnImportQuick');
-const createTokenA = document.getElementById('createTokenA'), createTokenB = document.getElementById('createTokenB'), addCustomA = document.getElementById('addCustomA'), addCustomB = document.getElementById('addCustomB');
+
+const createTokenA = document.getElementById('createTokenA'); // hidden select (kept for compatibility)
+const createTokenB = document.getElementById('createTokenB'); // hidden select
+const createTokenAVal = document.getElementById('createTokenAVal'); // visible value holder
+const createTokenBVal = document.getElementById('createTokenBVal');
+const createTokenAbtn = document.getElementById('createTokenAbtn');
+const createTokenBbtn = document.getElementById('createTokenBbtn');
+const createTokenAlogo = document.getElementById('createTokenAlogo');
+const createTokenBlogo = document.getElementById('createTokenBlogo');
+const createTokenAlabel = document.getElementById('createTokenAlabel');
+const createTokenBlabel = document.getElementById('createTokenBlabel');
+
 const balCreateA = document.getElementById('balCreateA'), balCreateB = document.getElementById('balCreateB');
 const createAmountA = document.getElementById('createAmountA'), createAmountB = document.getElementById('createAmountB');
 const btnCreatePool = document.getElementById('btnCreatePool'), btnApproveCreate = document.getElementById('btnApproveCreate');
@@ -256,6 +325,29 @@ function renderTxHistory(){
 }
 
 /* ============================
+  Toast & copy helpers (like swap.html)
+   ============================ */
+function showToast(msg, isErr=false, ttl=3800){
+  const wrap = document.getElementById('toast-wrap');
+  if(!wrap) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + (isErr? 'error':'success');
+  el.innerHTML = `<div class="ico">${isErr? '❌':'✅'}</div><div style="flex:1">${msg}</div>`;
+  wrap.appendChild(el);
+  setTimeout(()=> {
+    el.style.transition = 'opacity 250ms';
+    el.style.opacity = '0';
+    setTimeout(()=> el.remove(), 300);
+  }, ttl);
+}
+function copyAddress(addr) {
+  if (!addr) return showToast("⚠️ Token address not found", true);
+  navigator.clipboard.writeText(addr)
+    .then(() => showToast("✅ Token address copied to clipboard"))
+    .catch(() => showToast("❌ Failed to copy address", true));
+}
+
+/* ============================
   Ethers + init
    ============================ */
 (async function init(){
@@ -264,7 +356,7 @@ function renderTxHistory(){
   factoryContract = new ethersLib.Contract(FACTORY, FACTORY_ABI, provider);
   routerContract = new ethersLib.Contract(ROUTER, ROUTER_ABI, provider);
   bindUI();
-  populateTokenSelectors();
+  await populateTokenSelectors();
   await renderPopular();
   await renderMyPools();
   renderTxHistory();
@@ -285,10 +377,15 @@ function bindUI(){
 
   addCustomA.onclick = ()=>promptAddCustom();
   addCustomB.onclick = ()=>promptAddCustom();
+
+  // open token modal for create token A/B
+  createTokenAbtn.onclick = ()=> openTokenModal('A');
+  createTokenBbtn.onclick = ()=> openTokenModal('B');
+
   createTokenA.onchange = ()=>updateCreateBalances();
   createTokenB.onchange = ()=>updateCreateBalances();
   
-  // FIX: Prevent recursive syncing by tracking which input is being actively edited
+  // Prevent recursive syncing
   let syncing = false;
   createAmountA.addEventListener('input', debounce(()=>{
     if (!syncing) {
@@ -308,6 +405,11 @@ function bindUI(){
   
   btnCreatePool.onclick = ()=>createPoolFlow();
   btnApproveCreate.onclick = ()=>approveBothForCreate();
+
+  // modal controls
+  document.getElementById('tkClose').onclick = closeTokenModal;
+  document.getElementById('tkOverlay').onclick = (e)=>{ if(e.target.id === 'tkOverlay') closeTokenModal(); };
+  document.getElementById('tkSearch').addEventListener('input', debounce(renderTokenList, 150));
 }
 
 /* ============================
@@ -325,7 +427,7 @@ async function connectWallet(){
     connectBtn.innerText = 'Connected';
     factoryContract = new ethersLib.Contract(FACTORY, FACTORY_ABI, provider);
     routerContract = new ethersLib.Contract(ROUTER, ROUTER_ABI, provider);
-    populateTokenSelectors();
+    await populateTokenSelectors();
     await renderMyPools();
     updateCreateBalances();
   }catch(e){ alert(e.message || e); }
@@ -343,7 +445,7 @@ function switchTab(name){
 }
 
 /* ============================
-  Tokens & selectors
+  Tokens & selectors (populate hidden selects + visible labels)
    ============================ */
 function getMergedTokens(){
   const map = new Map();
@@ -354,15 +456,120 @@ function getMergedTokens(){
   });
   return Array.from(map.values());
 }
-function populateTokenSelectors(){
+async function populateTokenSelectors(){
   const tokens = getMergedTokens();
   createTokenA.innerHTML=''; createTokenB.innerHTML='';
   tokens.forEach(t=>{
     const o1 = document.createElement('option'); o1.value = t.address; o1.text = t.symbol; createTokenA.appendChild(o1);
     const o2 = document.createElement('option'); o2.value = t.address; o2.text = t.symbol; createTokenB.appendChild(o2);
   });
+
+  // set defaults if not set
   if(!createTokenA.value) createTokenA.value = 'XPL_NATIVE';
   if(!createTokenB.value) createTokenB.value = tokens[1]?tokens[1].address:'XPL_NATIVE';
+
+  // sync visible labels/logos
+  await refreshCreateVisibleFromSelect();
+}
+
+async function refreshCreateVisibleFromSelect(){
+  try{
+    // Token A
+    const aAddr = createTokenA.value || createTokenAVal.value;
+    const aSym = aAddr === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(aAddr);
+    createTokenAVal.value = aAddr;
+    createTokenAlabel.innerText = aSym;
+    createTokenAlogo.src = `assets/${aSym.toLowerCase()}.png`;
+    createTokenAlogo.onerror = function(){ this.onerror=null; this.src='assets/default.png'; };
+
+    // Token B
+    const bAddr = createTokenB.value || createTokenBVal.value;
+    const bSym = bAddr === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(bAddr);
+    createTokenBVal.value = bAddr;
+    createTokenBlabel.innerText = bSym;
+    createTokenBlogo.src = `assets/${bSym.toLowerCase()}.png`;
+    createTokenBlogo.onerror = function(){ this.onerror=null; this.src='assets/default.png'; };
+  }catch(e){ console.warn('refreshCreateVisibleFromSelect', e); }
+}
+
+/* ============================
+  Token modal handling (open, render list, select)
+   ============================ */
+let activeTokenTarget = null; // 'A' or 'B'
+function openTokenModal(target){
+  activeTokenTarget = target; // A or B
+  document.getElementById('tokenModal').style.display = 'block';
+  document.getElementById('tokenModal').setAttribute('aria-hidden','false');
+  document.getElementById('tkSearch').value = '';
+  renderTokenList(); // initial render
+  // autofocus search on larger screens
+  setTimeout(()=> document.getElementById('tkSearch').focus(), 50);
+}
+function closeTokenModal(){
+  activeTokenTarget = null;
+  document.getElementById('tokenModal').style.display = 'none';
+  document.getElementById('tokenModal').setAttribute('aria-hidden','true');
+}
+async function renderTokenList(){
+  const wrap = document.getElementById('tokenList');
+  wrap.innerHTML = '';
+  const q = (document.getElementById('tkSearch').value || '').trim().toLowerCase();
+  const tokens = getMergedTokens();
+  // allow showing native XPL first
+  const sorted = tokens.slice().sort((a,b)=>{
+    if(a.symbol === 'XPL') return -1;
+    if(b.symbol === 'XPL') return 1;
+    return a.symbol.localeCompare(b.symbol);
+  });
+  for(const t of sorted){
+    const sym = t.symbol || shortAddr(t.address);
+    const addr = t.address;
+    if(q){
+      if(!(sym.toLowerCase().includes(q) || (addr||'').toLowerCase().includes(q))) continue;
+    }
+    const row = document.createElement('div');
+    row.className = 'tk-item';
+    row.innerHTML = `
+      <div class="tk-left">
+        <img src="assets/${sym.toLowerCase()}.png" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo-small" />
+        <div>
+          <div style="font-weight:600">${sym}</div>
+          <div class="muted small">${addr==='XPL_NATIVE' ? sym + ' Token' : (addr ? shortAddr(addr) : '')}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="copy-btn" data-addr="${addr}">📋</button>
+      </div>
+    `;
+    // click on row selects token (but avoid click when pressing copy)
+    row.addEventListener('click', (e)=>{
+      if(e.target && (e.target.closest('.copy-btn') || e.target.classList.contains('copy-btn'))) return;
+      // set selects + visible labels
+      if(activeTokenTarget === 'A'){
+        createTokenA.value = addr;
+        createTokenAVal.value = addr;
+        refreshCreateVisibleFromSelect();
+        createTokenA.dispatchEvent(new Event('change'));
+      } else {
+        createTokenB.value = addr;
+        createTokenBVal.value = addr;
+        refreshCreateVisibleFromSelect();
+        createTokenB.dispatchEvent(new Event('change'));
+      }
+      closeTokenModal();
+    });
+    // copy button
+    row.querySelector('.copy-btn').addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const a = ev.currentTarget.getAttribute('data-addr');
+      if(a === 'XPL_NATIVE') return copyAddress('native XPL'); // optional text
+      copyAddress(a);
+    });
+    wrap.appendChild(row);
+  }
+  if(wrap.childElementCount === 0){
+    wrap.innerHTML = '<div class="muted small" style="padding:12px">No tokens found.</div>';
+  }
 }
 
 /* ============================
@@ -370,7 +577,7 @@ function populateTokenSelectors(){
    ============================ */
 async function updateCreateBalances(){
   try{
-    const a = createTokenA.value, b = createTokenB.value;
+    const a = createTokenA.value || createTokenAVal.value, b = createTokenB.value || createTokenBVal.value;
     if(!account){ balCreateA.innerText='Balance: —'; balCreateB.innerText='Balance: —'; return; }
     if(a==='XPL_NATIVE'){ const bal=await provider.getBalance(account); balCreateA.innerText='Balance: '+ethersLib.utils.formatUnits(bal,18)+' XPL'; }
     else { const c=new ethersLib.Contract(a, ERC20_ABI, provider); const dec=await c.decimals(); const bal=await c.balanceOf(account); balCreateA.innerText='Balance: '+ethersLib.utils.formatUnits(bal,dec)+' '+await safeSymbol(a); }
@@ -388,7 +595,7 @@ async function safeSymbol(address){
    ============================ */
 async function syncCreateBFromA(){
   try{
-    const aAddr=createTokenA.value, bAddr=createTokenB.value;
+    const aAddr=createTokenA.value || createTokenAVal.value, bAddr=createTokenB.value || createTokenBVal.value;
     if(!createAmountA.value){ return; } // Don't clear B when A is empty
     
     const onA = aAddr==='XPL_NATIVE'?WXPL:aAddr, onB = bAddr==='XPL_NATIVE'?WXPL:bAddr;
@@ -414,7 +621,7 @@ async function syncCreateBFromA(){
 
 async function syncCreateAFromB(){
   try{
-    const aAddr=createTokenA.value, bAddr=createTokenB.value;
+    const aAddr=createTokenA.value || createTokenAVal.value, bAddr=createTokenB.value || createTokenBVal.value;
     if(!createAmountB.value){ return; } // Don't clear A when B is empty
     
     const onA = aAddr==='XPL_NATIVE'?WXPL:aAddr, onB = bAddr==='XPL_NATIVE'?WXPL:bAddr;
@@ -446,7 +653,7 @@ async function approveBothForCreate(){
     if(!window.ethereum) return alert('Connect wallet first');
     if(!signer) { provider = new ethersLib.providers.Web3Provider(window.ethereum); signer = provider.getSigner(); }
     const owner = await signer.getAddress();
-    const a = createTokenA.value, b = createTokenB.value;
+    const a = createTokenA.value || createTokenAVal.value, b = createTokenB.value || createTokenBVal.value;
     if(a !== 'XPL_NATIVE'){
       const ca = new ethersLib.Contract(a, ERC20_ABI, provider);
       const allowance = await ca.allowance(owner, ROUTER);
@@ -469,12 +676,16 @@ async function approveBothForCreate(){
   }catch(e){ alert('Approve failed: '+(e.message||e)); createMsg.innerText='Approve failed'; }
 }
 
+/* ============================
+  Create pool flow
+   (uses createTokenA.value/createTokenB.value fallback)
+   ============================ */
 async function createPoolFlow(){
   try{
     if(!window.ethereum) return alert('Connect wallet first');
     if(!signer){ provider = new ethersLib.providers.Web3Provider(window.ethereum); signer = provider.getSigner(); }
     const owner = await signer.getAddress();
-    const a = createTokenA.value, b = createTokenB.value;
+    const a = createTokenA.value || createTokenAVal.value, b = createTokenB.value || createTokenBVal.value;
     if(!a||!b) return alert('Select tokens');
     if(a===b) return alert('Tokens must be different');
     const amountAS = createAmountA.value, amountBS = createAmountB.value;
@@ -548,7 +759,7 @@ async function importSingle(addr, msgEl){
 }
 
 /* ============================
-  Render popular pairs (symbols only)
+  Render popular pairs (with logos)
    ============================ */
 async function renderPopular(){
   popularList.innerHTML = '';
@@ -560,7 +771,19 @@ async function renderPopular(){
       const available = (pairAddr && pairAddr !== ethersLib.constants.AddressZero);
       const card = document.createElement('div');
       card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-center';
-      card.innerHTML = `<div><div class="font-semibold">${symA} / ${symB}</div><div class="muted small">${available?'Pool exists':'Pair missing'}</div></div><div><button class="px-3 py-1 rounded-lg ${available?'btn-grad':'border muted'}" ${available?'':'disabled'}>${available?'Add Liquidity':'Unavailable'}</button></div>`;
+      const logoAPath = `assets/${symA.toLowerCase()}.png`;
+      const logoBPath = `assets/${symB.toLowerCase()}.png`;
+      card.innerHTML = `
+        <div class="flex items-center gap-3">
+          <img src="${logoAPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" />
+          <img src="${logoBPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" style="margin-left:-8px;margin-right:10px" />
+          <div>
+            <div class="font-semibold">${symA} / ${symB}</div>
+            <div class="muted small">${available?'Pool exists':'Pair missing'}</div>
+          </div>
+        </div>
+        <div><button class="px-3 py-1 rounded-lg ${available?'btn-grad':'border muted'}" ${available?'':'disabled'}>${available?'Add Liquidity':'Unavailable'}</button></div>
+      `;
       if(available){
         card.querySelector('button').addEventListener('click', ()=>onSelectPool({symbol:symA,address:a},{symbol:symB,address:b}, pairAddr, card, false));
       }
@@ -570,7 +793,7 @@ async function renderPopular(){
 }
 
 /* ============================
-  Render My Pools (dedupe by pair)
+  Render My Pools (dedupe by pair) + logos
    ============================ */
 async function renderMyPools(){
   positionsList.innerHTML = '';
@@ -589,11 +812,23 @@ async function renderMyPools(){
       seenPairs.add(pairAddr.toLowerCase());
       const pair = new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
       if(!account){
-        const card = document.createElement('div');
-        card.className = 'p-3 card rounded-lg mb-2';
         const symA = c.a==='XPL_NATIVE'?'XPL':await safeSymbol(c.a);
         const symB = c.b==='XPL_NATIVE'?'XPL':await safeSymbol(c.b);
-        card.innerHTML = `<div class="font-semibold">${symA} / ${symB}</div><div class="muted small">Imported / existing</div><div class="mt-2"><button class="px-3 py-1 rounded-lg btn-grad">Select</button></div>`;
+        const card = document.createElement('div');
+        card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-center';
+        const logoAPath = `assets/${symA.toLowerCase()}.png`;
+        const logoBPath = `assets/${symB.toLowerCase()}.png`;
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <img src="${logoAPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" />
+            <img src="${logoBPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" style="margin-left:-8px;margin-right:10px" />
+            <div>
+              <div class="font-semibold">${symA} / ${symB}</div>
+              <div class="muted small">Imported / existing</div>
+            </div>
+          </div>
+          <div><button class="px-3 py-1 rounded-lg btn-grad">Select</button></div>
+        `;
         card.querySelector('button').onclick = ()=>onSelectPool({symbol:symA,address:c.a},{symbol:symB,address:c.b}, pairAddr, card, false);
         positionsList.appendChild(card);
         foundAny=true;
@@ -611,9 +846,21 @@ async function renderMyPools(){
         const metaA = await resolveMeta(c.a), metaB = await resolveMeta(c.b);
         const amtA = ethersLib.utils.formatUnits(userShareA, metaA.decimals);
         const amtB = ethersLib.utils.formatUnits(userShareB, metaB.decimals);
+        const logoAPath = `assets/${metaA.symbol.toLowerCase()}.png`;
+        const logoBPath = `assets/${metaB.symbol.toLowerCase()}.png`;
         const card = document.createElement('div');
         card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-start';
-        card.innerHTML = `<div><div class="font-semibold">${metaA.symbol} / ${metaB.symbol}</div><div class="muted small">Your liquidity: ${amtA} ${metaA.symbol} • ${amtB} ${metaB.symbol}</div></div><div><button class="px-3 py-1 rounded-lg bg-blue-600">Manage</button></div>`;
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <img src="${logoAPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" />
+            <img src="${logoBPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" style="margin-left:-8px;margin-right:10px" />
+            <div>
+              <div class="font-semibold">${metaA.symbol} / ${metaB.symbol}</div>
+              <div class="muted small">Your liquidity: ${amtA} ${metaA.symbol} • ${amtB} ${metaB.symbol}</div>
+            </div>
+          </div>
+          <div><button class="px-3 py-1 rounded-lg bg-blue-600">Manage</button></div>
+        `;
         card.querySelector('button').onclick = ()=>onSelectPool(metaA, metaB, pairAddr, card, true);
         positionsList.appendChild(card);
         foundAny=true;
@@ -624,7 +871,7 @@ async function renderMyPools(){
 }
 
 /* ============================
-  Pool Manager injection
+  Pool Manager injection (with logos + copy)
    ============================ */
 async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false){
   try{
@@ -638,13 +885,20 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
     if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA = reserves[1]; reserveB = reserves[0]; }
     const metaAf = await resolveMeta(metaA.address), metaBf = await resolveMeta(metaB.address);
 
+    const logoAPath = `assets/${metaAf.symbol.toLowerCase()}.png`;
+    const logoBPath = `assets/${metaBf.symbol.toLowerCase()}.png`;
+
     const manager = document.createElement('div');
     manager.id = 'activeManager';
     manager.className = 'card mt-3 p-4 rounded-lg';
     manager.innerHTML = `
-      <div class="flex justify-between items-center mb-3">
-        <div class="font-semibold">Pool Manager — ${metaAf.symbol} / ${metaBf.symbol}</div>
-        <div class="muted small">Pair: ${shortAddr(pairAddr)}</div>
+      <div class="flex justify-between items-center mb-3 pool-header">
+        <div class="flex items-center">
+          <img src="${logoAPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" />
+          <img src="${logoBPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" style="margin-left:-8px"/>
+          <div class="pair-symbol">${metaAf.symbol} / ${metaBf.symbol}</div>
+        </div>
+        <div class="muted small">Pair: <span id="pmPairAddr">${pairAddr}</span> <button id="copyPairBtn" class="px-2 py-1 rounded ml-2 border muted small">Copy</button></div>
       </div>
 
       <div id="pmBody">
@@ -688,6 +942,10 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
     `;
     if(originEl && originEl.parentNode) originEl.insertAdjacentElement('afterend', manager); else managerSpot.appendChild(manager);
 
+    // hook copy button
+    const copyPairBtn = document.getElementById('copyPairBtn');
+    copyPairBtn.addEventListener('click', ()=> copyAddress(pairAddr) );
+
     const pmA = document.getElementById('pmA'), pmB = document.getElementById('pmB');
     const pmBalA = document.getElementById('pmBalA'), pmBalB = document.getElementById('pmBalB');
     const pmAdd = document.getElementById('pmAdd'), pmRemove = document.getElementById('pmRemove'), pmMsg = document.getElementById('pmMsg');
@@ -702,7 +960,7 @@ async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false
     }
     await refreshBalances();
 
-    // FIX: Prevent recursive syncing in pool manager too
+    // autofill sync (prevent recursive)
     let pmSyncing = false;
     pmA.addEventListener('input', debounce(async ()=>{
       try{
