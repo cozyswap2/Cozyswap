@@ -793,64 +793,106 @@ async function importSingle(addr, msgEl){
 
 /* ============================
   Render popular pairs (with logos)
-   ============================ */
-async function renderPopular(){
+============================ */
+async function renderPopular() {
   popularList.innerHTML = '';
-  for(const p of POPULAR_PAIRS){
+  for (const p of POPULAR_PAIRS) {
     const a = p[0], b = p[1];
-    const symA = a==='XPL_NATIVE'?'XPL':await safeSymbol(a), symB = b==='XPL_NATIVE'?'XPL':await safeSymbol(b);
-    try{
-      const pairAddr = await factoryContract.getPair(a==='XPL_NATIVE'?WXPL:a, b==='XPL_NATIVE'?WXPL:b);
-      const available = (pairAddr && pairAddr !== ethersLib.constants.AddressZero);
+    const symA = a === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(a);
+    const symB = b === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(b);
+
+    try {
+      const pairAddr = await factoryContract.getPair(
+        a === 'XPL_NATIVE' ? WXPL : a,
+        b === 'XPL_NATIVE' ? WXPL : b
+      );
+      const available = pairAddr && pairAddr !== ethersLib.constants.AddressZero;
+
       const card = document.createElement('div');
       card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-center';
-      const logoAPath = `assets/${symA.toLowerCase()}.png`;
-      const logoBPath = `assets/${symB.toLowerCase()}.png`;
+
+      // ✅ ambil logo dari tokens.json (atau fallback ke /assets)
+      const logoAPath = getTokenLogo(symA);
+      const logoBPath = getTokenLogo(symB);
+
       card.innerHTML = `
         <div class="flex items-center gap-3">
-          <img src="${logoAPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" />
-          <img src="${logoBPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" style="margin-left:-8px;margin-right:10px" />
+          <div class="flex items-center">
+            <img src="${logoAPath}" 
+                 onerror="this.onerror=null;this.src='assets/default.png';" 
+                 class="token-logo" />
+            <img src="${logoBPath}" 
+                 onerror="this.onerror=null;this.src='assets/default.png';" 
+                 class="token-logo" 
+                 style="margin-left:-8px;margin-right:10px" />
+          </div>
           <div>
             <div class="font-semibold">${symA} / ${symB}</div>
-            <div class="muted small">${available?'Pool exists':'Pair missing'}</div>
+            <div class="muted small">${available ? 'Pool exists' : 'Pair missing'}</div>
           </div>
         </div>
-        <div><button class="px-3 py-1 rounded-lg ${available?'btn-grad':'border muted'}" ${available?'':'disabled'}>${available?'Add Liquidity':'Unavailable'}</button></div>
+        <div>
+          <button class="px-3 py-1 rounded-lg ${available ? 'btn-grad' : 'border muted'}" 
+                  ${available ? '' : 'disabled'}>
+            ${available ? 'Add Liquidity' : 'Unavailable'}
+          </button>
+        </div>
       `;
-      if(available){
-        card.querySelector('button').addEventListener('click', ()=>onSelectPool({symbol:symA,address:a},{symbol:symB,address:b}, pairAddr, card, false));
+
+      if (available) {
+        card.querySelector('button').addEventListener('click', () =>
+          onSelectPool(
+            { symbol: symA, address: a },
+            { symbol: symB, address: b },
+            pairAddr,
+            card,
+            false
+          )
+        );
       }
+
       popularList.appendChild(card);
-    }catch(e){ console.warn('renderPopular err', e); }
+    } catch (e) {
+      console.warn('renderPopular err', e);
+    }
   }
 }
 
+
 /* ============================
   Render My Pools (dedupe by pair) + logos
-   ============================ */
-async function renderMyPools(){
+============================ */
+async function renderMyPools() {
   positionsList.innerHTML = '';
-  noPositionsMsg.style.display='none';
+  noPositionsMsg.style.display = 'none';
   const candidates = [];
-  POPULAR_PAIRS.forEach(p=> candidates.push({ a:p[0], b:p[1] }));
-  importedPairs.forEach(p=> candidates.push({ a:p.tokenA, b:p.tokenB }));
+  POPULAR_PAIRS.forEach(p => candidates.push({ a: p[0], b: p[1] }));
+  importedPairs.forEach(p => candidates.push({ a: p.tokenA, b: p.tokenB }));
   const seenPairs = new Set();
-  let foundAny=false;
-  for(const c of candidates){
-    try{
-      const onA = c.a==='XPL_NATIVE'?WXPL:c.a, onB = c.b==='XPL_NATIVE'?WXPL:c.b;
+  let foundAny = false;
+
+  for (const c of candidates) {
+    try {
+      const onA = c.a === 'XPL_NATIVE' ? WXPL : c.a;
+      const onB = c.b === 'XPL_NATIVE' ? WXPL : c.b;
       const pairAddr = await factoryContract.getPair(onA, onB);
-      if(!pairAddr || pairAddr === ethersLib.constants.AddressZero) continue;
-      if(seenPairs.has(pairAddr.toLowerCase())) continue; // dedupe
+      if (!pairAddr || pairAddr === ethersLib.constants.AddressZero) continue;
+      if (seenPairs.has(pairAddr.toLowerCase())) continue; // dedupe
       seenPairs.add(pairAddr.toLowerCase());
+
       const pair = new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
-      if(!account){
-        const symA = c.a==='XPL_NATIVE'?'XPL':await safeSymbol(c.a);
-        const symB = c.b==='XPL_NATIVE'?'XPL':await safeSymbol(c.b);
+
+      // ✅ Case: belum connect wallet
+      if (!account) {
+        const symA = c.a === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(c.a);
+        const symB = c.b === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(c.b);
         const card = document.createElement('div');
         card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-center';
-        const logoAPath = `assets/${symA.toLowerCase()}.png`;
-        const logoBPath = `assets/${symB.toLowerCase()}.png`;
+
+        // ✅ ambil logo dari tokens.json (fallback ke assets)
+        const logoAPath = getTokenLogo(symA);
+        const logoBPath = getTokenLogo(symB);
+
         card.innerHTML = `
           <div class="flex items-center gap-3">
             <img src="${logoAPath}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo" />
@@ -862,25 +904,42 @@ async function renderMyPools(){
           </div>
           <div><button class="px-3 py-1 rounded-lg btn-grad">Select</button></div>
         `;
-        card.querySelector('button').onclick = ()=>onSelectPool({symbol:symA,address:c.a},{symbol:symB,address:c.b}, pairAddr, card, false);
+        card.querySelector('button').onclick = () => onSelectPool(
+          { symbol: symA, address: c.a },
+          { symbol: symB, address: c.b },
+          pairAddr,
+          card,
+          false
+        );
         positionsList.appendChild(card);
-        foundAny=true;
+        foundAny = true;
         continue;
       }
+
+      // ✅ Case: user has liquidity
       const lpBal = await pair.balanceOf(account);
-      if(lpBal && !lpBal.isZero()){
+      if (lpBal && !lpBal.isZero()) {
         const reserves = await pair.getReserves();
         const token0 = await pair.token0();
         let reserveA = reserves[0], reserveB = reserves[1];
-        if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA = reserves[1]; reserveB = reserves[0]; }
+        if (token0.toLowerCase() !== onA.toLowerCase()) {
+          reserveA = reserves[1];
+          reserveB = reserves[0];
+        }
+
         const totalSupply = await pair.totalSupply();
         const userShareA = reserveA.mul(lpBal).div(totalSupply);
         const userShareB = reserveB.mul(lpBal).div(totalSupply);
-        const metaA = await resolveMeta(c.a), metaB = await resolveMeta(c.b);
+
+        const metaA = await resolveMeta(c.a);
+        const metaB = await resolveMeta(c.b);
         const amtA = ethersLib.utils.formatUnits(userShareA, metaA.decimals);
         const amtB = ethersLib.utils.formatUnits(userShareB, metaB.decimals);
-        const logoAPath = `assets/${metaA.symbol.toLowerCase()}.png`;
-        const logoBPath = `assets/${metaB.symbol.toLowerCase()}.png`;
+
+        // ✅ ambil logo dari tokens.json (bukan assets langsung)
+        const logoAPath = getTokenLogo(metaA.symbol);
+        const logoBPath = getTokenLogo(metaB.symbol);
+
         const card = document.createElement('div');
         card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-start';
         card.innerHTML = `
@@ -894,14 +953,18 @@ async function renderMyPools(){
           </div>
           <div><button class="px-3 py-1 rounded-lg bg-blue-600">Manage</button></div>
         `;
-        card.querySelector('button').onclick = ()=>onSelectPool(metaA, metaB, pairAddr, card, true);
+        card.querySelector('button').onclick = () => onSelectPool(metaA, metaB, pairAddr, card, true);
         positionsList.appendChild(card);
-        foundAny=true;
+        foundAny = true;
       }
-    }catch(e){ console.warn('renderMyPools err', e); }
+    } catch (e) {
+      console.warn('renderMyPools err', e);
+    }
   }
-  if(!foundAny) noPositionsMsg.style.display='block';
+
+  if (!foundAny) noPositionsMsg.style.display = 'block';
 }
+
 
 /* ============================
   Pool Manager injection (with logos + copy)
