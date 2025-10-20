@@ -479,7 +479,7 @@ function switchTab(name){
 
 /* ============================
   Tokens & selectors (populate hidden selects + visible labels)
-   ============================ */
+============================ */
 function getMergedTokens(){
   const map = new Map();
   DEFAULT_TOKENS.concat(customTokens).forEach(t=> map.set((t.address||'').toLowerCase(), t));
@@ -489,53 +489,68 @@ function getMergedTokens(){
   });
   return Array.from(map.values());
 }
+
 async function populateTokenSelectors(){
+  if (!tokenList.length) await loadTokenList(); // pastikan JSON sudah siap
+
   const tokens = getMergedTokens();
-  createTokenA.innerHTML=''; createTokenB.innerHTML='';
+  createTokenA.innerHTML=''; 
+  createTokenB.innerHTML='';
+
   tokens.forEach(t=>{
-    const o1 = document.createElement('option'); o1.value = t.address; o1.text = t.symbol; createTokenA.appendChild(o1);
-    const o2 = document.createElement('option'); o2.value = t.address; o2.text = t.symbol; createTokenB.appendChild(o2);
+    const o1 = document.createElement('option'); 
+    o1.value = t.address; 
+    o1.text = t.symbol; 
+    createTokenA.appendChild(o1);
+
+    const o2 = document.createElement('option'); 
+    o2.value = t.address; 
+    o2.text = t.symbol; 
+    createTokenB.appendChild(o2);
   });
 
-  // set defaults if not set
+  // set defaults
   if(!createTokenA.value) createTokenA.value = 'XPL_NATIVE';
-  if(!createTokenB.value) createTokenB.value = tokens[1]?tokens[1].address:'XPL_NATIVE';
+  if(!createTokenB.value) createTokenB.value = tokens[1] ? tokens[1].address : 'XPL_NATIVE';
 
-  // sync visible labels/logos
   await refreshCreateVisibleFromSelect();
 }
 
+/* ============================
+  Refresh visible logos & labels
+============================ */
 async function refreshCreateVisibleFromSelect(){
-  try{
+  try {
     // Token A
     const aAddr = createTokenA.value || createTokenAVal.value;
-    const aSym = aAddr === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(aAddr);
+    const aSym  = aAddr === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(aAddr);
     createTokenAVal.value = aAddr;
     createTokenAlabel.innerText = aSym;
-    createTokenAlogo.src = `assets/${aSym.toLowerCase()}.png`;
+    createTokenAlogo.src = getTokenLogo(aSym);
     createTokenAlogo.onerror = function(){ this.onerror=null; this.src='assets/default.png'; };
 
     // Token B
     const bAddr = createTokenB.value || createTokenBVal.value;
-    const bSym = bAddr === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(bAddr);
+    const bSym  = bAddr === 'XPL_NATIVE' ? 'XPL' : await safeSymbol(bAddr);
     createTokenBVal.value = bAddr;
     createTokenBlabel.innerText = bSym;
-    createTokenBlogo.src = `assets/${bSym.toLowerCase()}.png`;
+    createTokenBlogo.src = getTokenLogo(bSym);
     createTokenBlogo.onerror = function(){ this.onerror=null; this.src='assets/default.png'; };
-  }catch(e){ console.warn('refreshCreateVisibleFromSelect', e); }
+  } catch(e) {
+    console.warn('refreshCreateVisibleFromSelect', e);
+  }
 }
 
 /* ============================
   Token modal handling (open, render list, select)
-   ============================ */
+============================ */
 let activeTokenTarget = null; // 'A' or 'B'
 function openTokenModal(target){
-  activeTokenTarget = target; // A or B
+  activeTokenTarget = target;
   document.getElementById('tokenModal').style.display = 'block';
   document.getElementById('tokenModal').setAttribute('aria-hidden','false');
   document.getElementById('tkSearch').value = '';
-  renderTokenList(); // initial render
-  // autofocus search on larger screens
+  renderTokenList();
   setTimeout(()=> document.getElementById('tkSearch').focus(), 50);
 }
 function closeTokenModal(){
@@ -543,28 +558,38 @@ function closeTokenModal(){
   document.getElementById('tokenModal').style.display = 'none';
   document.getElementById('tokenModal').setAttribute('aria-hidden','true');
 }
+
+/* ============================
+  Render token list (logos from tokens.json)
+============================ */
 async function renderTokenList(){
   const wrap = document.getElementById('tokenList');
   wrap.innerHTML = '';
   const q = (document.getElementById('tkSearch').value || '').trim().toLowerCase();
   const tokens = getMergedTokens();
-  // allow showing native XPL first
+
+  // Prioritaskan XPL dulu
   const sorted = tokens.slice().sort((a,b)=>{
     if(a.symbol === 'XPL') return -1;
     if(b.symbol === 'XPL') return 1;
     return a.symbol.localeCompare(b.symbol);
   });
+
   for(const t of sorted){
     const sym = t.symbol || shortAddr(t.address);
     const addr = t.address;
     if(q){
       if(!(sym.toLowerCase().includes(q) || (addr||'').toLowerCase().includes(q))) continue;
     }
+
+    // ✅ ambil logo dari tokens.json
+    const logoSrc = getTokenLogo(sym);
+
     const row = document.createElement('div');
     row.className = 'tk-item';
     row.innerHTML = `
       <div class="tk-left">
-        <img src="assets/${sym.toLowerCase()}.png" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo-small" />
+        <img src="${logoSrc}" onerror="this.onerror=null;this.src='assets/default.png';" class="token-logo-small" />
         <div>
           <div style="font-weight:600">${sym}</div>
           <div class="muted small">${addr==='XPL_NATIVE' ? sym + ' Token' : (addr ? shortAddr(addr) : '')}</div>
@@ -574,10 +599,10 @@ async function renderTokenList(){
         <button class="copy-btn" data-addr="${addr}">📋</button>
       </div>
     `;
-    // click on row selects token (but avoid click when pressing copy)
+
+    // klik baris token
     row.addEventListener('click', (e)=>{
       if(e.target && (e.target.closest('.copy-btn') || e.target.classList.contains('copy-btn'))) return;
-      // set selects + visible labels
       if(activeTokenTarget === 'A'){
         createTokenA.value = addr;
         createTokenAVal.value = addr;
@@ -591,19 +616,23 @@ async function renderTokenList(){
       }
       closeTokenModal();
     });
-    // copy button
+
+    // ✅ tombol copy dengan optional text tetap dipertahankan
     row.querySelector('.copy-btn').addEventListener('click', (ev)=>{
       ev.stopPropagation();
       const a = ev.currentTarget.getAttribute('data-addr');
-      if(a === 'XPL_NATIVE') return copyAddress('native XPL'); // optional text
+      if(a === 'XPL_NATIVE') return copyAddress('native XPL'); // ✅ optional text masih ada
       copyAddress(a);
     });
+
     wrap.appendChild(row);
   }
+
   if(wrap.childElementCount === 0){
     wrap.innerHTML = '<div class="muted small" style="padding:12px">No tokens found.</div>';
   }
 }
+
 
 /* ============================
   Balances for create tab
