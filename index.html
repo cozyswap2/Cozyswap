@@ -199,6 +199,40 @@
 </div>
 
 <script>
+const TOKEN_LIST_KEY = "cozy_token_v1";
+let tokenList = [];
+
+// 🔄 Ambil tokens.json dengan cache busting agar auto-refresh saat file update
+async function loadTokenList() {
+  try {
+    const ts = Date.now(); // mencegah cache browser
+    const res = await fetch(`tokens.json?ver=${ts}`);
+    const data = await res.json();
+    localStorage.setItem(TOKEN_LIST_KEY, JSON.stringify(data));
+    tokenList = data;
+  } catch (e) {
+    console.error("Failed to load tokens.json, using cached list", e);
+    const cached = localStorage.getItem(TOKEN_LIST_KEY);
+    if (cached) tokenList = JSON.parse(cached);
+  }
+}
+
+// 📦 Ambil token detail berdasarkan symbol
+function getTokenInfo(symbol) {
+  return tokenList.find(t => t.symbol === symbol) || null;
+}
+
+// 🔧 Utility untuk ambil logo
+function getTokenLogo(symbol) {
+  const info = getTokenInfo(symbol);
+  return info?.logoURI || `assets/${symbol.toLowerCase()}.png`;
+}
+
+// Jalankan saat halaman load
+loadTokenList();
+</script>
+
+
 /* ============================
   Config & dependencies
    ============================ */
