@@ -146,6 +146,8 @@
     switchChain
   } from "https://esm.sh/@wagmi/core@2.13.0";
 
+  import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
+
   // WalletConnect Project ID
   const projectId = "a9ca60975a434a874c01a34c5f7ff722";
 
@@ -180,15 +182,15 @@
     },
   };
 
-  // Wagmi config hanya dengan Plasma
-  const chains = [plasmaChain];
+  // Wagmi config dengan kedua chain
+  const chains = [plasmaChain, mainnet];
   const config = defaultWagmiConfig({ 
     chains, 
     projectId, 
     metadata
   });
 
-  // Buat modal dengan Plasma sebagai satu-satunya chain
+  // Buat modal
   const modal = createWeb3Modal({
     wagmiConfig: config,
     projectId,
@@ -205,8 +207,10 @@
     const account = getAccount(config);
     if (account?.address) {
       try {
+        // Coba ambil balance dari Plasma dulu
         const balance = await getBalance(config, { 
-          address: account.address
+          address: account.address,
+          chainId: plasmaChain.id
         });
         info.innerHTML = `
           ✅ Terkoneksi ke Plasma:<br>
@@ -214,20 +218,12 @@
           Saldo: <b>${parseFloat(balance.value) / 1e18} XPL</b><br>
           <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
         `;
-        
-        // Force switch ke Plasma chain jika belum
-        try {
-          await switchChain(config, { chainId: plasmaChain.id });
-        } catch (error) {
-          console.log('Network switch mungkin diperlukan manual');
-        }
-
       } catch (error) {
-        console.error('Error getting balance:', error);
+        // Fallback ke Ethereum atau tampilkan tanpa balance
         info.innerHTML = `
           ✅ Terkoneksi:<br>
           <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
-          <small class="text-yellow-400">Switch ke Plasma Mainnet di wallet Anda</small><br>
+          <small class="text-yellow-400">Switch ke Plasma Mainnet</small><br>
           <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
         `;
       }
@@ -247,16 +243,18 @@
     modal.open();
   };
 
-  // Auto switch ke Plasma ketika modal terbuka
+  // Force switch ke Plasma setelah connect
   modal.subscribeEvents((event) => {
     if (event.type === 'CONNECT_SUCCESS') {
+      console.log('Wallet connected, switching to Plasma...');
       setTimeout(async () => {
         try {
           await switchChain(config, { chainId: plasmaChain.id });
+          console.log('Switched to Plasma successfully');
         } catch (error) {
-          console.log('Network switch diperlukan manual');
+          console.log('Network switch可能需要手动操作:', error);
         }
-      }, 500);
+      }, 1000);
     }
   });
 
