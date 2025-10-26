@@ -131,170 +131,6 @@
     <footer class="mt-6 muted small text-center">CozySwap • Powered by Plasma • @CozySwap</footer>
   </div>
 
-<!-- Web3Modal Script - TAMBAHKAN INI -->
-<script type="module">
-  import {
-    createWeb3Modal,
-    defaultWagmiConfig
-  } from "https://esm.sh/@web3modal/wagmi?bundle";
-
-  import {
-    getAccount,
-    getBalance,
-    watchAccount,
-    disconnect,
-    switchChain
-  } from "https://esm.sh/@wagmi/core@2.13.0";
-
-  import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
-  import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
-
-  // WalletConnect Project ID
-  const projectId = "a9ca60975a434a874c01a34c5f7ff722";
-
-  // Metadata domain
-  const metadata = {
-    name: "CozySwap HTML",
-    description: "WalletConnect v2 Pure HTML Demo",
-    url: "https://saputangan.edgeone.app",
-    icons: ["https://avatars.githubusercontent.com/u/37784886"]
-  };
-
-  // Plasma chain
-  const plasmaChain = {
-    id: 9745,
-    name: 'Plasma Mainnet',
-    network: 'plasma',
-    nativeCurrency: {
-      decimals: 18,
-      name: 'XPL',
-      symbol: 'XPL',
-    },
-    rpcUrls: {
-      default: {
-        http: ['https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4'],
-      },
-      public: {
-        http: ['https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4'],
-      },
-    },
-    blockExplorers: {
-      default: { name: 'PlasmaScan', url: 'https://plasmascan.to' },
-    },
-  };
-
-  const chains = [plasmaChain, mainnet];
-  const config = defaultWagmiConfig({ chains, projectId, metadata });
-
-  const modal = createWeb3Modal({
-    wagmiConfig: config,
-    projectId,
-    chains,
-    defaultChain: plasmaChain,
-    enableAnalytics: false
-  });
-
-  reconnect(config);
-
-  const info = document.getElementById("info");
-
-  // Fungsi untuk sinkronisasi dengan aplikasi utama
-  async function syncWithMainApp() {
-    const account = getAccount(config);
-    
-    if (account?.address) {
-      try {
-        const balance = await getBalance(config, { 
-          address: account.address,
-          chainId: plasmaChain.id
-        });
-        
-        info.innerHTML = `
-          ✅ Terkoneksi ke Plasma:<br>
-          <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
-          Saldo: <b>${parseFloat(balance.value) / 1e18} XPL</b><br>
-          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
-        `;
-
-        // ⭐⭐ SINCRONISASI KE APLIKASI UTAMA ⭐⭐
-        if (window.ethers && window.provider) {
-          try {
-            // Update aplikasi utama dengan wallet yang terhubung
-            window.provider = new window.ethers.providers.Web3Provider(window.ethereum);
-            window.signer = window.provider.getSigner();
-            window.account = account.address;
-            
-            if (window.walletAddress) {
-              window.walletAddress.innerText = account.address.slice(0,6) + '...' + account.address.slice(-4);
-            }
-            if (window.connectBtn) {
-              window.connectBtn.innerText = 'Connected';
-            }
-            
-            // Trigger update di aplikasi utama
-            if (window.updateCreateBalances) {
-              window.updateCreateBalances();
-            }
-            if (window.renderMyPools) {
-              window.renderMyPools();
-            }
-            
-          } catch (e) {
-            console.log('Sync dengan app utama:', e);
-          }
-        }
-
-      } catch (error) {
-        const balance = await getBalance(config, { address: account.address });
-        info.innerHTML = `
-          ✅ Terkoneksi (Ethereum):<br>
-          <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
-          Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
-          <small class="text-yellow-400">Switch ke Plasma di wallet</small><br>
-          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
-        `;
-      }
-    } else {
-      info.innerHTML = "Belum terkoneksi.";
-      
-      // ⭐⭐ RESET APLIKASI UTAMA ⭐⭐
-      if (window.walletAddress) {
-        window.walletAddress.innerText = "Not connected";
-      }
-      if (window.connectBtn) {
-        window.connectBtn.innerText = "Connect Wallet";
-      }
-      window.account = null;
-    }
-  }
-
-  watchAccount(config, syncWithMainApp);
-
-  window.disconnectWallet = async () => {
-    await disconnect(config);
-    syncWithMainApp();
-  };
-
-  window.openWeb3Modal = function() {
-    modal.open();
-  };
-
-  // Auto switch ke Plasma
-  modal.subscribeEvents((event) => {
-    if (event.type === 'CONNECT_SUCCESS') {
-      setTimeout(async () => {
-        try {
-          await switchChain(config, { chainId: plasmaChain.id });
-        } catch (error) {
-          console.log('Auto-switch failed');
-        }
-      }, 1000);
-    }
-  });
-
-  // Initial sync
-  syncWithMainApp();
-</script>
 
 <!-- Existing Application Script -->
 <script>
@@ -1055,5 +891,170 @@ renderTxHistory();
 
 </script>
 <script src="appkit.bundle.js"></script>
+<!-- Web3Modal Script - TAMBAHKAN INI -->
+<script type="module">
+  import {
+    createWeb3Modal,
+    defaultWagmiConfig
+  } from "https://esm.sh/@web3modal/wagmi?bundle";
+
+  import {
+    getAccount,
+    getBalance,
+    watchAccount,
+    disconnect,
+    switchChain
+  } from "https://esm.sh/@wagmi/core@2.13.0";
+
+  import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
+  import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
+
+  // WalletConnect Project ID
+  const projectId = "a9ca60975a434a874c01a34c5f7ff722";
+
+  // Metadata domain
+  const metadata = {
+    name: "CozySwap HTML",
+    description: "WalletConnect v2 Pure HTML Demo",
+    url: "https://saputangan.edgeone.app",
+    icons: ["https://avatars.githubusercontent.com/u/37784886"]
+  };
+
+  // Plasma chain
+  const plasmaChain = {
+    id: 9745,
+    name: 'Plasma Mainnet',
+    network: 'plasma',
+    nativeCurrency: {
+      decimals: 18,
+      name: 'XPL',
+      symbol: 'XPL',
+    },
+    rpcUrls: {
+      default: {
+        http: ['https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4'],
+      },
+      public: {
+        http: ['https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4'],
+      },
+    },
+    blockExplorers: {
+      default: { name: 'PlasmaScan', url: 'https://plasmascan.to' },
+    },
+  };
+
+  const chains = [plasmaChain, mainnet];
+  const config = defaultWagmiConfig({ chains, projectId, metadata });
+
+  const modal = createWeb3Modal({
+    wagmiConfig: config,
+    projectId,
+    chains,
+    defaultChain: plasmaChain,
+    enableAnalytics: false
+  });
+
+  reconnect(config);
+
+  const info = document.getElementById("info");
+
+  // Fungsi untuk sinkronisasi dengan aplikasi utama
+  async function syncWithMainApp() {
+    const account = getAccount(config);
+    
+    if (account?.address) {
+      try {
+        const balance = await getBalance(config, { 
+          address: account.address,
+          chainId: plasmaChain.id
+        });
+        
+        info.innerHTML = `
+          ✅ Terkoneksi ke Plasma:<br>
+          <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
+          Saldo: <b>${parseFloat(balance.value) / 1e18} XPL</b><br>
+          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
+        `;
+
+        // ⭐⭐ SINCRONISASI KE APLIKASI UTAMA ⭐⭐
+        if (window.ethers && window.provider) {
+          try {
+            // Update aplikasi utama dengan wallet yang terhubung
+            window.provider = new window.ethers.providers.Web3Provider(window.ethereum);
+            window.signer = window.provider.getSigner();
+            window.account = account.address;
+            
+            if (window.walletAddress) {
+              window.walletAddress.innerText = account.address.slice(0,6) + '...' + account.address.slice(-4);
+            }
+            if (window.connectBtn) {
+              window.connectBtn.innerText = 'Connected';
+            }
+            
+            // Trigger update di aplikasi utama
+            if (window.updateCreateBalances) {
+              window.updateCreateBalances();
+            }
+            if (window.renderMyPools) {
+              window.renderMyPools();
+            }
+            
+          } catch (e) {
+            console.log('Sync dengan app utama:', e);
+          }
+        }
+
+      } catch (error) {
+        const balance = await getBalance(config, { address: account.address });
+        info.innerHTML = `
+          ✅ Terkoneksi (Ethereum):<br>
+          <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
+          Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
+          <small class="text-yellow-400">Switch ke Plasma di wallet</small><br>
+          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
+        `;
+      }
+    } else {
+      info.innerHTML = "Belum terkoneksi.";
+      
+      // ⭐⭐ RESET APLIKASI UTAMA ⭐⭐
+      if (window.walletAddress) {
+        window.walletAddress.innerText = "Not connected";
+      }
+      if (window.connectBtn) {
+        window.connectBtn.innerText = "Connect Wallet";
+      }
+      window.account = null;
+    }
+  }
+
+  watchAccount(config, syncWithMainApp);
+
+  window.disconnectWallet = async () => {
+    await disconnect(config);
+    syncWithMainApp();
+  };
+
+  window.openWeb3Modal = function() {
+    modal.open();
+  };
+
+  // Auto switch ke Plasma
+  modal.subscribeEvents((event) => {
+    if (event.type === 'CONNECT_SUCCESS') {
+      setTimeout(async () => {
+        try {
+          await switchChain(config, { chainId: plasmaChain.id });
+        } catch (error) {
+          console.log('Auto-switch failed');
+        }
+      }, 1000);
+    }
+  });
+
+  // Initial sync
+  syncWithMainApp();
+</script>
+
 </body>
 </html>
