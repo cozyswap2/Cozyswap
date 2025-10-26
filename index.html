@@ -155,20 +155,53 @@
   const metadata = {
     name: "CozySwap HTML",
     description: "WalletConnect v2 Pure HTML Demo",
-    url: "https://saputangan.edgeone.app", // sesuaikan domain
+    url: "https://saputangan.edgeone.app",
     icons: ["https://avatars.githubusercontent.com/u/37784886"]
   };
 
-  // Wagmi config
-  const chains = [mainnet];
-  const config = defaultWagmiConfig({ chains, projectId, metadata });
+  // Custom Plasma Chain Configuration
+  const plasmaChain = {
+    id: 9745,
+    name: 'Plasma Mainnet',
+    network: 'plasma',
+    nativeCurrency: {
+      decimals: 18,
+      name: 'XPL',
+      symbol: 'XPL',
+    },
+    rpcUrls: {
+      default: {
+        http: ['https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4'],
+      },
+      public: {
+        http: ['https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4'],
+      },
+    },
+    blockExplorers: {
+      default: { name: 'PlasmaScan', url: 'https://plasmascan.to' },
+    },
+  };
 
-  // Buat modal dulu baru panggil reconnect (ini penting)
+  // Wagmi config dengan Plasma chain
+  const chains = [plasmaChain, mainnet];
+  const config = defaultWagmiConfig({ 
+    chains, 
+    projectId, 
+    metadata,
+    enableWalletConnect: true,
+    enableInjected: true,
+    enableEIP6963: true,
+    enableCoinbase: true
+  });
+
+  // Buat modal dengan Plasma sebagai chain default
   const modal = createWeb3Modal({
     wagmiConfig: config,
     projectId,
     chains,
-    enableAnalytics: false
+    defaultChain: plasmaChain,
+    enableAnalytics: false,
+    enableOnramp: false
   });
 
   reconnect(config);
@@ -178,13 +211,30 @@
   async function updateInfo() {
     const account = getAccount(config);
     if (account?.address) {
-      const balance = await getBalance(config, { address: account.address });
-      info.innerHTML = `
-        ✅ Terkoneksi ke:<br>
-        <b>${account.address}</b><br>
-        Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
-        <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
-      `;
+      try {
+        const balance = await getBalance(config, { 
+          address: account.address,
+          chainId: plasmaChain.id 
+        });
+        info.innerHTML = `
+          ✅ Terkoneksi ke Plasma:<br>
+          <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
+          Saldo: <b>${parseFloat(balance.value) / 1e18} XPL</b><br>
+          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
+        `;
+        
+        // Update aplikasi utama dengan koneksi wallet
+        if (window.ethereum && window.connectWallet) {
+          await window.connectWallet();
+        }
+      } catch (error) {
+        console.error('Error getting balance:', error);
+        info.innerHTML = `
+          ✅ Terkoneksi:<br>
+          <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
+          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
+        `;
+      }
     } else {
       info.innerHTML = "Belum terkoneksi.";
     }
@@ -195,11 +245,35 @@
   window.disconnectWallet = async () => {
     await disconnect(config);
     updateInfo();
+    // Reset aplikasi utama
+    if (window.walletAddress) {
+      window.walletAddress.innerText = "Not connected";
+    }
+    if (window.connectBtn) {
+      window.connectBtn.innerText = "Connect Wallet";
+    }
   };
 
   window.openWeb3Modal = function() {
     modal.open();
   };
+
+  // Auto switch ke Plasma chain ketika wallet connected
+  modal.subscribeEvents((event) => {
+    if (event.type === 'CONNECT_SUCCESS') {
+      // Coba switch ke Plasma chain
+      setTimeout(async () => {
+        try {
+          await modal.switchNetwork(plasmaChain);
+        } catch (error) {
+          console.log('Network switch mungkin tidak didukung oleh wallet');
+        }
+      }, 1000);
+    }
+  });
+
+  // Initial update
+  updateInfo();
 </script>
 
 <!-- Existing Application Script -->
