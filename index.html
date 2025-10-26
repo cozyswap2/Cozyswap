@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CozySwap — Liquidity</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{--bg:#0b0b0f;--card:#111216;--muted:#9aa0a6;--accent1:#6c63ff;--accent2:#00c6ff}
+  body{background:var(--bg);color:#e6eef8;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:0}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.03)}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+  .btn-grad{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:white}
+  .rounded-full-img{width:48px;height:48px;border-radius:50%;object-fit:cover}
+  a.tx-link{color:#66b2ff;text-decoration:underline;cursor:pointer}
+</style>
+</head>
+<body class="p-4">
+  <div class="max-w-3xl mx-auto">
+    <header class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-4">
+        <img src="https://photos.pinksale.finance/file/pinksale-logo-upload/1759992605150-e3175ba3ea1d9672e44128a60a685807.JPG" class="rounded-full-img" alt="Cozy"/>
+        <div>
+          <div class="text-2xl font-semibold">CozySwap — Liquidity</div>
+          <div class="muted small">Plasma (9745) • @CozySwap</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div id="walletAddress" class="muted small">Not connected</div>
+        <button id="connectBtn" class="px-3 py-2 rounded-lg btn-grad">Connect Wallet</button>
+      </div>
+    </header>
+
+    <nav class="flex gap-2 mb-4">
+      <button id="tabMy" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400">My Pools</button>
+      <button id="tabExplore" class="px-4 py-2 text-gray-300">Explore</button>
+      <button id="tabCreate" class="px-4 py-2 text-gray-300">Create</button>
+    </nav>
+
+    <!-- My Pools -->
+    <section id="viewMy">
+      <div class="card mb-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold">Your Liquidity Positions</div>
+            <div class="muted small">Import, create, or manage your pools</div>
+          </div>
+          <div class="flex gap-2">
+            <button id="btnCreateQuick" class="px-3 py-2 rounded-lg bg-green-600 small">+ Create Pool</button>
+            <button id="btnImportQuick" class="px-3 py-2 rounded-lg border small muted">↻ Import Pool</button>
+          </div>
+        </div>
+
+        <div id="positionsList" class="mt-4 space-y-3"></div>
+        <div id="noPositionsMsg" class="mt-3 muted small">No existing liquidity positions found.</div>
+
+        <div id="importBoxQuick" class="hidden mt-3">
+          <input id="importAddrQuick" placeholder="Paste token address to import" class="w-full bg-transparent border rounded-lg px-3 py-2 mb-2"/>
+          <div class="flex gap-2">
+            <button id="doImportQuick" class="btn-grad px-3 py-2 rounded-lg">Import</button>
+            <button id="cancelImportQuick" class="border px-3 py-2 rounded-lg muted">Cancel</button>
+          </div>
+          <div id="importQuickMsg" class="mt-2 muted small"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Explore -->
+    <section id="viewExplore" class="hidden">
+      <div class="card mb-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold">Popular Pools</div>
+            <div class="muted small">Select a pool to add liquidity</div>
+          </div>
+        </div>
+        <div id="popularList" class="mt-4 space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- Create -->
+    <section id="viewCreate" class="hidden">
+      <div class="card mb-4">
+        <div class="font-semibold">Create / Add Liquidity</div>
+        <div class="muted small">Warning: Anyone can create ERC20 tokens. Verify before adding liquidity.</div>
+
+        <div class="mt-4 grid grid-cols-1 gap-3">
+          <div>
+            <label class="small muted">Token A</label>
+            <div class="flex gap-2 mt-2">
+              <select id="createTokenA" class="flex-1 bg-transparent border rounded-lg px-3 py-2"></select>
+              <button id="addCustomA" class="px-3 py-2 border rounded-lg muted">＋</button>
+            </div>
+            <div id="balCreateA" class="muted small mt-1">Balance: —</div>
+          </div>
+
+          <div class="text-center muted">⇅</div>
+
+          <div>
+            <label class="small muted">Token B</label>
+            <div class="flex gap-2 mt-2">
+              <select id="createTokenB" class="flex-1 bg-transparent border rounded-lg px-3 py-2"></select>
+              <button id="addCustomB" class="px-3 py-2 border rounded-lg muted">＋</button>
+            </div>
+            <div id="balCreateB" class="muted small mt-1">Balance: —</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <input id="createAmountA" placeholder="Amount A" class="bg-transparent border rounded-lg px-3 py-2"/>
+            <input id="createAmountB" placeholder="Amount B" class="bg-transparent border rounded-lg px-3 py-2"/>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="btnApproveCreate" class="flex-1 px-3 py-2 rounded-lg border muted">Approve (auto)</button>
+            <button id="btnCreatePool" class="flex-1 px-3 py-2 rounded-lg btn-grad">Create Pool</button>
+          </div>
+
+          <div id="createMsg" class="muted small mt-2"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="managerSpot"></div>
+
+    <div id="txHistoryBox" class="card mt-4">
+      <div class="font-semibold">Recent transactions (24h)</div>
+      <div id="txHistoryList" class="mt-2 small muted"></div>
+    </div>
+
+    <footer class="mt-6 muted small text-center">CozySwap • Powered by Plasma • @CozySwap</footer>
+  </div>
+ <script type="module">
+      import {
+        createWeb3Modal,
+        defaultWagmiConfig
+      } from "https://esm.sh/@web3modal/wagmi?bundle";
+
+      import {
+        getAccount,
+        getBalance,
+        watchAccount,
+        disconnect
+      } from "https://esm.sh/@wagmi/core@2.13.0";
+
+      import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
+      import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
+
+      // WalletConnect Project ID
+      const projectId = "a9ca60975a434a874c01a34c5f7ff722";
+
+      // Metadata domain
+      const metadata = {
+        name: "CozySwap HTML",
+        description: "WalletConnect v2 Pure HTML Demo",
+        url: "https://saputangan.edgeone.app", // sesuaikan domain
+        icons: ["https://avatars.githubusercontent.com/u/37784886"]
+      };
+
+      // Wagmi config
+      const chains = [mainnet];
+      const config = defaultWagmiConfig({ chains, projectId, metadata });
+
+      // Buat modal dulu baru panggil reconnect (ini penting)
+      const modal = createWeb3Modal({
+        wagmiConfig: config,
+        projectId,
+        chains,
+        enableAnalytics: false
+      });
+
+      reconnect(config);
+
+      const info = document.getElementById("info");
+
+      async function updateInfo() {
+        const account = getAccount(config);
+        if (account?.address) {
+          const balance = await getBalance(config, { address: account.address });
+          info.innerHTML = `
+            ✅ Terkoneksi ke:<br>
+            <b>${account.address}</b><br>
+            Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
+            <button onclick="disconnectWallet()">Disconnect</button>
+          `;
+        } else {
+          info.innerHTML = "Belum terkoneksi.";
+        }
+      }
+
+      watchAccount(config, updateInfo);
+
+      window.disconnectWallet = async () => {
+        await disconnect(config);
+        updateInfo();
+      };
+    </script>
+<script>
+/* ============================
+  Config & dependencies
+   ============================ */
+const RPC = 'https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4';
+const CHAIN_ID_HEX = '0x2611';
+const ROUTER = '0x89E695B38610e78a77Fb310458Dfd855505AD239';
+const FACTORY = '0xa252e44D3478CeBb1a3D59C9146CD860cb09Ec93';
+const WXPL = '0x6100E367285b01F48D07953803A2d8dCA5D19873';
+const SCAN_BASE = 'https://plasmascan.to/tx/'; // user confirmed
+
+const DEFAULT_TOKENS = [
+  { symbol: 'XPL', address: 'XPL_NATIVE', decimals: 18 },
+  { symbol: 'COZY', address: '0x06e2ef46662834f4e42dbf9ff9222b077c57df5c', decimals: 18 },
+  { symbol: 'USDT', address: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', decimals: 6 },
+  { symbol: 'WETH', address: '0x9895D81bB462A195b4922ED7De0e3ACD007c32CB', decimals: 18 }
+];
+
+const POPULAR_PAIRS = [
+  ['XPL_NATIVE','0x06e2ef46662834f4e42dbf9ff9222b077c57df5c'],
+  ['XPL_NATIVE','0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb']
+];
+
+const ERC20_ABI = [
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender,uint256 amount) returns (bool)',
+  'function allowance(address owner,address spender) view returns (uint256)'
+];
+const FACTORY_ABI = ['function getPair(address,address) view returns (address)','function createPair(address,address) returns (address)'];
+const ROUTER_ABI = [
+  'function addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256) returns (uint256,uint256,uint256)',
+  'function addLiquidityETH(address token,uint amountTokenDesired,uint amountTokenMin,uint amountETHMin,address to,uint deadline) payable returns (uint256,uint256,uint256)',
+  'function removeLiquidity(address,address,uint256,uint256,uint256,address,uint256) returns (uint256,uint256)'
+];
+const PAIR_ABI = ['function getReserves() view returns (uint112,uint112,uint32)','function token0() view returns (address)','function token1() view returns (address)','function balanceOf(address) view returns (uint256)','function totalSupply() view returns (uint256)'];
+
+/* ============================
+  Ethers loader (try CDN)
+   ============================ */
+const ETHER_CDNS = [
+  'https://cdn.jsdelivr.net/npm/ethers@5.7.1/dist/ethers.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.1/ethers.umd.min.js'
+];
+async function loadEthers(){
+  if(window.ethers) return window.ethers;
+  for(const u of ETHER_CDNS){
+    try{
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script'); s.src=u; s.async=true; s.onload=res; s.onerror=rej; document.head.appendChild(s);
+      });
+      if(window.ethers) return window.ethers;
+    }catch(e){ console.warn('cd fail', u); }
+  }
+  throw new Error('ethers not available');
+}
+
+/* ============================
+  State & DOM
+   ============================ */
+let ethersLib, provider, signer, account;
+let factoryContract, routerContract;
+const LS_CUSTOM = 'cozy_custom_tokens_vfinal';
+const LS_IMPORTED = 'cozy_imported_pairs_vfinal';
+const LS_TXS = 'cozy_tx_history_vfinal';
+
+let customTokens = loadLS(LS_CUSTOM, []);
+let importedPairs = loadLS(LS_IMPORTED, []);
+let txHistory = loadLS(LS_TXS, []);
+
+const connectBtn = document.getElementById('connectBtn');
+const walletAddress = document.getElementById('walletAddress');
+const tabMy = document.getElementById('tabMy'), tabExplore = document.getElementById('tabExplore'), tabCreate = document.getElementById('tabCreate');
+const viewMy = document.getElementById('viewMy'), viewExplore = document.getElementById('viewExplore'), viewCreate = document.getElementById('viewCreate');
+const positionsList = document.getElementById('positionsList'), noPositionsMsg = document.getElementById('noPositionsMsg');
+const importBoxQuick = document.getElementById('importBoxQuick'), importAddrQuick = document.getElementById('importAddrQuick'), doImportQuick = document.getElementById('doImportQuick'), importQuickMsg = document.getElementById('importQuickMsg'), cancelImportQuick = document.getElementById('cancelImportQuick');
+const popularList = document.getElementById('popularList');
+const btnCreateQuick = document.getElementById('btnCreateQuick'), btnImportQuick = document.getElementById('btnImportQuick');
+const createTokenA = document.getElementById('createTokenA'), createTokenB = document.getElementById('createTokenB'), addCustomA = document.getElementById('addCustomA'), addCustomB = document.getElementById('addCustomB');
+const balCreateA = document.getElementById('balCreateA'), balCreateB = document.getElementById('balCreateB');
+const createAmountA = document.getElementById('createAmountA'), createAmountB = document.getElementById('createAmountB');
+const btnCreatePool = document.getElementById('btnCreatePool'), btnApproveCreate = document.getElementById('btnApproveCreate');
+const managerSpot = document.getElementById('managerSpot');
+const txHistoryList = document.getElementById('txHistoryList');
+
+/* ============================
+  Helpers
+   ============================ */
+function loadLS(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d;}catch(e){return d} }
+function saveLS(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function shortAddr(a){ if(!a) return '-'; return a.slice(0,6)+'...'+a.slice(-4); }
+function nowSec(){ return Math.floor(Date.now()/1000); }
+function addTxToHistory(hash, label){
+  if(!hash) return;
+  txHistory.unshift({ hash, label, ts: nowSec() });
+  // keep only 100 items max and then persist
+  txHistory = txHistory.filter(t => (nowSec() - t.ts) < 24*3600).slice(0,100);
+  saveLS(LS_TXS, txHistory);
+  renderTxHistory();
+}
+function renderTxHistory(){
+  // purge older than 24h
+  txHistory = txHistory.filter(t => (nowSec() - t.ts) < 24*3600);
+  saveLS(LS_TXS, txHistory);
+  if(txHistory.length === 0){ txHistoryList.innerHTML = '<div class="muted small">No recent tx.</div>'; return; }
+  txHistoryList.innerHTML = '';
+  txHistory.forEach(t=>{
+    const el = document.createElement('div');
+    el.innerHTML = `<div><a class="tx-link" data-h="${t.hash}">${shortAddr(t.hash)} · ${t.label || 'tx'}</a> <span class="muted small">(${new Date(t.ts*1000).toLocaleTimeString()})</span></div>`;
+    el.querySelector('a').onclick = (e)=>{ const h=e.currentTarget.getAttribute('data-h'); if(h) location.href = '${SCAN_BASE}'.replace('${SCAN_BASE}','') + ''; };
+    // Above couldn't insert dynamic inside, we'll set onclick below properly
+    txHistoryList.appendChild(el);
+  });
+  // correct click binding (safer)
+  const links = txHistoryList.querySelectorAll('a.tx-link');
+  links.forEach(a=>{
+    a.onclick = (e)=>{ const h = e.currentTarget.getAttribute('data-h'); if(h) location.href = SCAN_BASE + h; };
+  });
+}
+
+/* ============================
+  Ethers + init
+   ============================ */
+(async function init(){
+  try{ ethersLib = await loadEthers(); } catch(e){ alert('Failed load ethers.js — ensure CDN allowed'); return; }
+  provider = new ethersLib.providers.JsonRpcProvider(RPC);
+  factoryContract = new ethersLib.Contract(FACTORY, FACTORY_ABI, provider);
+  routerContract = new ethersLib.Contract(ROUTER, ROUTER_ABI, provider);
+  bindUI();
+  populateTokenSelectors();
+  await renderPopular();
+  await renderMyPools();
+  renderTxHistory();
+})();
+
+/* ============================
+  UI Bindings
+   ============================ */
+function bindUI(){
+  connectBtn.onclick = connectWallet;
+  tabMy.onclick = ()=>switchTab('my');
+  tabExplore.onclick = ()=>switchTab('explore');
+  tabCreate.onclick = ()=>switchTab('create');
+  btnCreateQuick.onclick = ()=>switchTab('create');
+  btnImportQuick.onclick = ()=>{ importBoxQuick.classList.toggle('hidden'); };
+  cancelImportQuick.onclick = ()=>{ importBoxQuick.classList.add('hidden'); importQuickMsg.innerText=''; importAddrQuick.value=''; };
+  doImportQuick.onclick = ()=>importSingle(importAddrQuick.value.trim(), importQuickMsg);
+
+  addCustomA.onclick = ()=>promptAddCustom();
+  addCustomB.onclick = ()=>promptAddCustom();
+  createTokenA.onchange = ()=>updateCreateBalances();
+  createTokenB.onchange = ()=>updateCreateBalances();
+  createAmountA.addEventListener('input', debounce(()=>{ syncCreateBFromA(); },300));
+  createAmountB.addEventListener('input', debounce(()=>{ syncCreateAFromB(); },300));
+  btnCreatePool.onclick = ()=>createPoolFlow();
+  btnApproveCreate.onclick = ()=>approveBothForCreate();
+}
+
+/* ============================
+  Connect wallet
+   ============================ */
+async function connectWallet(){
+  try{
+    if(!window.ethereum) return alert('MetaMask/injected wallet required');
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    try{ await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] }); } catch(e){ console.warn('switch chain failed', e); }
+    provider = new ethersLib.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    account = await signer.getAddress();
+    walletAddress.innerText = account.slice(0,6) + '...' + account.slice(-4);
+    connectBtn.innerText = 'Connected';
+    factoryContract = new ethersLib.Contract(FACTORY, FACTORY_ABI, provider);
+    routerContract = new ethersLib.Contract(ROUTER, ROUTER_ABI, provider);
+    populateTokenSelectors();
+    await renderMyPools();
+    updateCreateBalances();
+  }catch(e){ alert(e.message || e); }
+}
+
+/* ============================
+  Tab switch
+   ============================ */
+function switchTab(name){
+  viewMy.style.display='none'; viewExplore.style.display='none'; viewCreate.style.display='none';
+  tabMy.classList.remove('text-blue-400','border-b-2'); tabExplore.classList.remove('text-blue-400','border-b-2'); tabCreate.classList.remove('text-blue-400','border-b-2');
+  if(name==='my'){ viewMy.style.display='block'; tabMy.classList.add('text-blue-400','border-b-2'); }
+  if(name==='explore'){ viewExplore.style.display='block'; tabExplore.classList.add('text-blue-400','border-b-2'); }
+  if(name==='create'){ viewCreate.style.display='block'; tabCreate.classList.add('text-blue-400','border-b-2'); }
+}
+
+/* ============================
+  Tokens & selectors
+   ============================ */
+function getMergedTokens(){
+  const map = new Map();
+  DEFAULT_TOKENS.concat(customTokens).forEach(t=> map.set((t.address||'').toLowerCase(), t));
+  importedPairs.forEach(p=>{
+    map.set((p.tokenA||'').toLowerCase(), {symbol: p.tokenASym||shortAddr(p.tokenA), address: p.tokenA});
+    map.set((p.tokenB||'').toLowerCase(), {symbol: p.tokenBSym||shortAddr(p.tokenB), address: p.tokenB});
+  });
+  return Array.from(map.values());
+}
+function populateTokenSelectors(){
+  const tokens = getMergedTokens();
+  createTokenA.innerHTML=''; createTokenB.innerHTML='';
+  tokens.forEach(t=>{
+    const o1 = document.createElement('option'); o1.value = t.address; o1.text = t.symbol; createTokenA.appendChild(o1);
+    const o2 = document.createElement('option'); o2.value = t.address; o2.text = t.symbol; createTokenB.appendChild(o2);
+  });
+  if(!createTokenA.value) createTokenA.value = 'XPL_NATIVE';
+  if(!createTokenB.value) createTokenB.value = tokens[1]?tokens[1].address:'XPL_NATIVE';
+}
+
+/* ============================
+  Balances for create tab
+   ============================ */
+async function updateCreateBalances(){
+  try{
+    const a = createTokenA.value, b = createTokenB.value;
+    if(!account){ balCreateA.innerText='Balance: —'; balCreateB.innerText='Balance: —'; return; }
+    if(a==='XPL_NATIVE'){ const bal=await provider.getBalance(account); balCreateA.innerText='Balance: '+ethersLib.utils.formatUnits(bal,18)+' XPL'; }
+    else { const c=new ethersLib.Contract(a, ERC20_ABI, provider); const dec=await c.decimals(); const bal=await c.balanceOf(account); balCreateA.innerText='Balance: '+ethersLib.utils.formatUnits(bal,dec)+' '+await safeSymbol(a); }
+    if(b==='XPL_NATIVE'){ const bal=await provider.getBalance(account); balCreateB.innerText='Balance: '+ethersLib.utils.formatUnits(bal,18)+' XPL'; }
+    else { const c2=new ethersLib.Contract(b, ERC20_ABI, provider); const dec2=await c2.decimals(); const bal2=await c2.balanceOf(account); balCreateB.innerText='Balance: '+ethersLib.utils.formatUnits(bal2,dec2)+' '+await safeSymbol(b); }
+  }catch(e){ console.warn('updateCreateBalances', e); }
+}
+async function safeSymbol(address){
+  if(address==='XPL_NATIVE') return 'XPL';
+  try{ const c=new ethersLib.Contract(address, ERC20_ABI, provider); return await c.symbol(); }catch(e){ return shortAddr(address); }
+}
+
+/* ============================
+  Sync amounts (use pair reserves)
+   ============================ */
+async function syncCreateBFromA(){
+  try{
+    const aAddr=createTokenA.value, bAddr=createTokenB.value;
+    if(!createAmountA.value){ createAmountB.value=''; return; }
+    const onA = aAddr==='XPL_NATIVE'?WXPL:aAddr, onB = bAddr==='XPL_NATIVE'?WXPL:bAddr;
+    const pairAddr = await factoryContract.getPair(onA, onB);
+    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){ createAmountB.value=''; return; }
+    const pair=new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
+    const reserves=await pair.getReserves(); const token0 = await pair.token0();
+    let reserveA=reserves[0], reserveB=reserves[1];
+    if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA=reserves[1]; reserveB=reserves[0]; }
+    const decA = aAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(aAddr, ERC20_ABI, provider)).decimals();
+    const decB = bAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(bAddr, ERC20_ABI, provider)).decimals();
+    const inA = ethersLib.utils.parseUnits(createAmountA.value||'0', decA);
+    if(reserveA.isZero()) return;
+    const outB = reserveB.mul(inA).div(reserveA);
+    createAmountB.value = ethersLib.utils.formatUnits(outB, decB);
+  }catch(e){ console.warn('syncCreateBFromA', e); }
+}
+async function syncCreateAFromB(){
+  try{
+    const aAddr=createTokenA.value, bAddr=createTokenB.value;
+    if(!createAmountB.value){ createAmountA.value=''; return; }
+    const onA = aAddr==='XPL_NATIVE'?WXPL:aAddr, onB = bAddr==='XPL_NATIVE'?WXPL:bAddr;
+    const pairAddr = await factoryContract.getPair(onA, onB);
+    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){ createAmountA.value=''; return; }
+    const pair=new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
+    const reserves=await pair.getReserves(); const token0 = await pair.token0();
+    let reserveA=reserves[0], reserveB=reserves[1];
+    if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA=reserves[1]; reserveB=reserves[0]; }
+    const decA = aAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(aAddr, ERC20_ABI, provider)).decimals();
+    const decB = bAddr==='XPL_NATIVE'?18: await (new ethersLib.Contract(bAddr, ERC20_ABI, provider)).decimals();
+    const inB = ethersLib.utils.parseUnits(createAmountB.value||'0', decB);
+    if(reserveB.isZero()) return;
+    const outA = reserveA.mul(inB).div(reserveB);
+    createAmountA.value = ethersLib.utils.formatUnits(outA, decA);
+  }catch(e){ console.warn('syncCreateAFromB', e); }
+}
+
+/* ============================
+  Approve & create pool (same as before)
+   ============================ */
+async function approveBothForCreate(){
+  try{
+    if(!window.ethereum) return alert('Connect wallet first');
+    if(!signer) { provider = new ethersLib.providers.Web3Provider(window.ethereum); signer = provider.getSigner(); }
+    const owner = await signer.getAddress();
+    const a = createTokenA.value, b = createTokenB.value;
+    if(a !== 'XPL_NATIVE'){
+      const ca = new ethersLib.Contract(a, ERC20_ABI, provider);
+      const allowance = await ca.allowance(owner, ROUTER);
+      if(allowance.lt(ethersLib.constants.MaxUint256.div(2))){
+        createMsg.innerText = 'Approving ' + await safeSymbol(a) + '...';
+        const tx = await ca.connect(signer).approve(ROUTER, ethersLib.constants.MaxUint256);
+        await tx.wait();
+      }
+    }
+    if(b !== 'XPL_NATIVE'){
+      const cb = new ethersLib.Contract(b, ERC20_ABI, provider);
+      const allowance2 = await cb.allowance(owner, ROUTER);
+      if(allowance2.lt(ethersLib.constants.MaxUint256.div(2))){
+        createMsg.innerText = 'Approving ' + await safeSymbol(b) + '...';
+        const tx2 = await cb.connect(signer).approve(ROUTER, ethersLib.constants.MaxUint256);
+        await tx2.wait();
+      }
+    }
+    createMsg.innerText = 'Approved';
+  }catch(e){ alert('Approve failed: '+(e.message||e)); createMsg.innerText='Approve failed'; }
+}
+
+async function createPoolFlow(){
+  try{
+    if(!window.ethereum) return alert('Connect wallet first');
+    if(!signer){ provider = new ethersLib.providers.Web3Provider(window.ethereum); signer = provider.getSigner(); }
+    const owner = await signer.getAddress();
+    const a = createTokenA.value, b = createTokenB.value;
+    if(!a||!b) return alert('Select tokens');
+    if(a===b) return alert('Tokens must be different');
+    const amountAS = createAmountA.value, amountBS = createAmountB.value;
+    if(!amountAS||!amountBS) return alert('Enter amounts for both tokens');
+    createMsg.innerText = 'Processing...';
+    const onA = a==='XPL_NATIVE'?WXPL:a, onB = b==='XPL_NATIVE'?WXPL:b;
+    let pairAddr = await factoryContract.getPair(onA, onB);
+    if(!pairAddr || pairAddr===ethersLib.constants.AddressZero){
+      const facS = factoryContract.connect(signer);
+      const tx = await facS.createPair(onA, onB);
+      addTxToHistory(tx.hash, 'createPair');
+      await tx.wait();
+      pairAddr = await factoryContract.getPair(onA, onB);
+      if(!pairAddr || pairAddr===ethersLib.constants.AddressZero) throw new Error('Pair creation failed');
+    }
+    await approveBothForCreate();
+    const decA = a==='XPL_NATIVE'?18: await (new ethersLib.Contract(a, ERC20_ABI, provider)).decimals();
+    const decB = b==='XPL_NATIVE'?18: await (new ethersLib.Contract(b, ERC20_ABI, provider)).decimals();
+    const amountA = ethersLib.utils.parseUnits(amountAS, decA);
+    const amountB = ethersLib.utils.parseUnits(amountBS, decB);
+    const routerS = routerContract.connect(signer);
+    const deadline = (await provider.getBlock('latest')).timestamp + 60*10;
+    let tx;
+    if(a==='XPL_NATIVE' || b==='XPL_NATIVE'){
+      if(a==='XPL_NATIVE'){
+        tx = await routerS.addLiquidityETH(onB, amountB, 0, 0, owner, deadline, { value: amountA });
+      } else {
+        tx = await routerS.addLiquidityETH(onA, amountA, 0, 0, owner, deadline, { value: amountB });
+      }
+    } else {
+      tx = await routerS.addLiquidity(onA, onB, amountA, amountB, 0, 0, owner, deadline);
+    }
+    addTxToHistory(tx.hash, 'addLiquidity');
+    createMsg.innerText = 'Tx sent: ' + tx.hash;
+    await tx.wait();
+    createMsg.innerText = 'Liquidity added: ' + tx.hash;
+    importedPairs.push({ tokenA: a, tokenB: b, tokenASym: await safeSymbol(a), tokenBSym: await safeSymbol(b), pair: pairAddr });
+    saveLS(LS_IMPORTED, importedPairs);
+    populateTokenSelectors();
+    await renderPopular();
+    await renderMyPools();
+  }catch(e){ console.error('createFlow', e); createMsg.innerText = 'Create/Add failed: '+(e.message||e); alert('Create/Add failed: '+(e.message||e)); }
+}
+
+/* ============================
+  Import single-token
+   ============================ */
+async function importSingle(addr, msgEl){
+  try{
+    if(!addr) return msgEl.innerText='Provide token address';
+    if(!ethersLib.utils.isAddress(addr)) return msgEl.innerText='Invalid address';
+    msgEl.innerText='Searching pairs...';
+    const candidates = getMergedTokensForImport().map(t=>t.address);
+    let found=0;
+    for(const other of candidates){
+      if(other.toLowerCase()===addr.toLowerCase()) continue;
+      try{
+        const onA = addr==='XPL_NATIVE'?WXPL:addr, onB = other==='XPL_NATIVE'?WXPL:other;
+        const pairAddr = await factoryContract.getPair(onA, onB);
+        if(pairAddr && pairAddr !== ethersLib.constants.AddressZero){
+          const symA = await safeSymbol(addr); const symB = await safeSymbol(other);
+          importedPairs.push({ tokenA: addr, tokenB: other, tokenASym: symA, tokenBSym: symB, pair: pairAddr });
+          addCustomIfMissing(addr); addCustomIfMissing(other);
+          found++;
+        }
+      }catch(e){}
+    }
+    if(found===0) msgEl.innerText='No pairs found for that token.';
+    else { saveLS(LS_IMPORTED, importedPairs); msgEl.innerText = `Imported ${found} pair(s).`; populateTokenSelectors(); await renderPopular(); await renderMyPools(); }
+  }catch(e){ console.error('importSingle', e); msgEl.innerText='Import failed'; }
+}
+
+/* ============================
+  Render popular pairs (symbols only)
+   ============================ */
+async function renderPopular(){
+  popularList.innerHTML = '';
+  for(const p of POPULAR_PAIRS){
+    const a = p[0], b = p[1];
+    const symA = a==='XPL_NATIVE'?'XPL':await safeSymbol(a), symB = b==='XPL_NATIVE'?'XPL':await safeSymbol(b);
+    try{
+      const pairAddr = await factoryContract.getPair(a==='XPL_NATIVE'?WXPL:a, b==='XPL_NATIVE'?WXPL:b);
+      const available = (pairAddr && pairAddr !== ethersLib.constants.AddressZero);
+      const card = document.createElement('div');
+      card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-center';
+      card.innerHTML = `<div><div class="font-semibold">${symA} / ${symB}</div><div class="muted small">${available?'Pool exists':'Pair missing'}</div></div><div><button class="px-3 py-1 rounded-lg ${available?'btn-grad':'border muted'}" ${available?'':'disabled'}>${available?'Add Liquidity':'Unavailable'}</button></div>`;
+      if(available){
+        card.querySelector('button').addEventListener('click', ()=>onSelectPool({symbol:symA,address:a},{symbol:symB,address:b}, pairAddr, card, false));
+      }
+      popularList.appendChild(card);
+    }catch(e){ console.warn('renderPopular err', e); }
+  }
+}
+
+/* ============================
+  Render My Pools (dedupe by pair)
+   ============================ */
+async function renderMyPools(){
+  positionsList.innerHTML = '';
+  noPositionsMsg.style.display='none';
+  const candidates = [];
+  POPULAR_PAIRS.forEach(p=> candidates.push({ a:p[0], b:p[1] }));
+  importedPairs.forEach(p=> candidates.push({ a:p.tokenA, b:p.tokenB }));
+  const seenPairs = new Set();
+  let foundAny=false;
+  for(const c of candidates){
+    try{
+      const onA = c.a==='XPL_NATIVE'?WXPL:c.a, onB = c.b==='XPL_NATIVE'?WXPL:c.b;
+      const pairAddr = await factoryContract.getPair(onA, onB);
+      if(!pairAddr || pairAddr === ethersLib.constants.AddressZero) continue;
+      if(seenPairs.has(pairAddr.toLowerCase())) continue; // dedupe
+      seenPairs.add(pairAddr.toLowerCase());
+      const pair = new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
+      if(!account){
+        const card = document.createElement('div');
+        card.className = 'p-3 card rounded-lg mb-2';
+        const symA = c.a==='XPL_NATIVE'?'XPL':await safeSymbol(c.a);
+        const symB = c.b==='XPL_NATIVE'?'XPL':await safeSymbol(c.b);
+        card.innerHTML = `<div class="font-semibold">${symA} / ${symB}</div><div class="muted small">Imported / existing</div><div class="mt-2"><button class="px-3 py-1 rounded-lg btn-grad">Select</button></div>`;
+        card.querySelector('button').onclick = ()=>onSelectPool({symbol:symA,address:c.a},{symbol:symB,address:c.b}, pairAddr, card, false);
+        positionsList.appendChild(card);
+        foundAny=true;
+        continue;
+      }
+      const lpBal = await pair.balanceOf(account);
+      if(lpBal && !lpBal.isZero()){
+        const reserves = await pair.getReserves();
+        const token0 = await pair.token0();
+        let reserveA = reserves[0], reserveB = reserves[1];
+        if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA = reserves[1]; reserveB = reserves[0]; }
+        const totalSupply = await pair.totalSupply();
+        const userShareA = reserveA.mul(lpBal).div(totalSupply);
+        const userShareB = reserveB.mul(lpBal).div(totalSupply);
+        const metaA = await resolveMeta(c.a), metaB = await resolveMeta(c.b);
+        const amtA = ethersLib.utils.formatUnits(userShareA, metaA.decimals);
+        const amtB = ethersLib.utils.formatUnits(userShareB, metaB.decimals);
+        const card = document.createElement('div');
+        card.className = 'p-3 card rounded-lg mb-2 flex justify-between items-start';
+        card.innerHTML = `<div><div class="font-semibold">${metaA.symbol} / ${metaB.symbol}</div><div class="muted small">Your liquidity: ${amtA} ${metaA.symbol} • ${amtB} ${metaB.symbol}</div></div><div><button class="px-3 py-1 rounded-lg bg-blue-600">Manage</button></div>`;
+        card.querySelector('button').onclick = ()=>onSelectPool(metaA, metaB, pairAddr, card, true);
+        positionsList.appendChild(card);
+        foundAny=true;
+      }
+    }catch(e){ console.warn('renderMyPools err', e); }
+  }
+  if(!foundAny) noPositionsMsg.style.display='block';
+}
+
+/* ============================
+  Pool Manager injection (with fixes)
+   ============================ */
+async function onSelectPool(metaA, metaB, pairAddr, originEl=null, isOwner=false){
+  try{
+    const prev = document.getElementById('activeManager'); if(prev) prev.remove();
+    const onA = metaA.address==='XPL_NATIVE'?WXPL:metaA.address;
+    const onB = metaB.address==='XPL_NATIVE'?WXPL:metaB.address;
+    const pair = new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
+    const reserves = await pair.getReserves();
+    const token0 = await pair.token0();
+    let reserveA = reserves[0], reserveB = reserves[1];
+    if(token0.toLowerCase() !== onA.toLowerCase()){ reserveA = reserves[1]; reserveB = reserves[0]; }
+    const metaAf = await resolveMeta(metaA.address), metaBf = await resolveMeta(metaB.address);
+
+    const manager = document.createElement('div');
+    manager.id = 'activeManager';
+    manager.className = 'card mt-3 p-4 rounded-lg';
+    manager.innerHTML = `
+      <div class="flex justify-between items-center mb-3">
+        <div class="font-semibold">Pool Manager — ${metaAf.symbol} / ${metaBf.symbol}</div>
+        <div class="muted small">Pair: ${shortAddr(pairAddr)}</div>
+      </div>
+
+      <div id="pmBody">
+        <div class="mb-3">
+          <label class="muted small">Token A — ${metaAf.symbol}</label>
+          <div class="muted small">Address: ${metaAf.address==='XPL_NATIVE'?'native (XPL)':shortAddr(metaAf.address)}</div>
+          <input id="pmA" class="w-full bg-transparent border rounded-lg px-3 py-2 mt-1" placeholder="0.0"/>
+          <div class="muted small mt-1" id="pmBalA">Balance: —</div>
+          <div class="flex gap-2 mt-2">
+            <button data-pct="0" class="pct small muted border px-2 py-1 rounded">0%</button>
+            <button data-pct="25" class="pct small muted border px-2 py-1 rounded">25%</button>
+            <button data-pct="50" class="pct small muted border px-2 py-1 rounded">50%</button>
+            <button data-pct="75" class="pct small muted border px-2 py-1 rounded">75%</button>
+            <button data-pct="100" class="pct small muted border px-2 py-1 rounded">100%</button>
+          </div>
+        </div>
+
+        <div class="text-center muted my-2"><button id="swapAB" class="muted small border rounded px-3 py-1">⇅</button></div>
+
+        <div class="mb-3">
+          <label class="muted small">Token B — ${metaBf.symbol}</label>
+          <div class="muted small">Address: ${metaBf.address==='XPL_NATIVE'?'native (XPL)':shortAddr(metaBf.address)}</div>
+          <input id="pmB" class="w-full bg-transparent border rounded-lg px-3 py-2 mt-1" placeholder="0.0"/>
+          <div class="muted small mt-1" id="pmBalB">Balance: —</div>
+          <div class="flex gap-2 mt-2">
+            <button data-pct="0" class="pctB small muted border px-2 py-1 rounded">0%</button>
+            <button data-pct="25" class="pctB small muted border px-2 py-1 rounded">25%</button>
+            <button data-pct="50" class="pctB small muted border px-2 py-1 rounded">50%</button>
+            <button data-pct="75" class="pctB small muted border px-2 py-1 rounded">75%</button>
+            <button data-pct="100" class="pctB small muted border px-2 py-1 rounded">100%</button>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-3">
+          <button id="pmAdd" class="flex-1 px-3 py-2 rounded-lg btn-grad">Add Liquidity</button>
+          ${isOwner?'<button id="pmRemove" class="flex-1 px-3 py-2 rounded-lg bg-red-600">Remove Liquidity</button>':''}
+        </div>
+
+        <div id="pmMsg" class="muted small mt-2"></div>
+      </div>
+    `;
+    if(originEl && originEl.parentNode) originEl.insertAdjacentElement('afterend', manager); else managerSpot.appendChild(manager);
+
+    const pmA = document.getElementById('pmA'), pmB = document.getElementById('pmB');
+    const pmBalA = document.getElementById('pmBalA'), pmBalB = document.getElementById('pmBalB');
+    const pmAdd = document.getElementById('pmAdd'), pmRemove = document.getElementById('pmRemove'), pmMsg = document.getElementById('pmMsg');
+    const swapAB = document.getElementById('swapAB');
+
+    async function refreshBalances(){
+      try{
+        if(!account){ pmBalA.innerText='Balance: —'; pmBalB.innerText='Balance: —'; return; }
+        if(metaAf.address==='XPL_NATIVE'){ const bal=await provider.getBalance(account); pmBalA.innerText='Balance: '+ethersLib.utils.formatUnits(bal,metaAf.decimals||18)+' '+metaAf.symbol;} else { const ca=new ethersLib.Contract(metaAf.address, ERC20_ABI, provider); const dec=await ca.decimals(); const bal=await ca.balanceOf(account); pmBalA.innerText='Balance: '+ethersLib.utils.formatUnits(bal,dec)+' '+metaAf.symbol; }
+        if(metaBf.address==='XPL_NATIVE'){ const bal=await provider.getBalance(account); pmBalB.innerText='Balance: '+ethersLib.utils.formatUnits(bal,metaBf.decimals||18)+' '+metaBf.symbol;} else { const cb=new ethersLib.Contract(metaBf.address, ERC20_ABI, provider); const dec2=await cb.decimals(); const bal2=await cb.balanceOf(account); pmBalB.innerText='Balance: '+ethersLib.utils.formatUnits(bal2,dec2)+' '+metaBf.symbol; }
+      }catch(e){ console.warn('refreshBalances', e); }
+    }
+    await refreshBalances();
+
+    // autofill A->B and B->A
+    pmA.addEventListener('input', debounce(async ()=>{
+      try{
+        const v = pmA.value || '0';
+        if(!v || Number(v) === 0){ pmB.value = ''; return; }
+        const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
+        const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
+        const inA = ethersLib.utils.parseUnits(v||'0', decA);
+        if(reserveA.isZero()) return;
+        const outB = reserveB.mul(inA).div(reserveA);
+        pmB.value = ethersLib.utils.formatUnits(outB, decB);
+      }catch(e){ console.warn('pm autofill A->B', e); }
+    }, 300));
+
+    pmB.addEventListener('input', debounce(async ()=>{
+      try{
+        const v = pmB.value || '0';
+        if(!v || Number(v) === 0){ pmA.value = ''; return; }
+        const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
+        const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
+        const inB = ethersLib.utils.parseUnits(v||'0', decB);
+        if(reserveB.isZero()) return;
+        const outA = reserveA.mul(inB).div(reserveB);
+        pmA.value = ethersLib.utils.formatUnits(outA, decA);
+      }catch(e){ console.warn('pm autofill B->A', e); }
+    }, 300));
+
+
+
+    // percent buttons
+    manager.querySelectorAll('.pct').forEach(btn=>btn.addEventListener('click', async ()=>{
+      const pct = Number(btn.getAttribute('data-pct'))/100;
+      if(!account) return alert('Connect wallet');
+      try{
+        if(metaAf.address==='XPL_NATIVE'){ const bal=await provider.getBalance(account); pmA.value = ethersLib.utils.formatUnits(bal.mul(Math.floor(pct*100)).div(100), metaAf.decimals||18); } else { const ca=new ethersLib.Contract(metaAf.address, ERC20_ABI, provider); const dec=await ca.decimals(); const bal=await ca.balanceOf(account); pmA.value = ethersLib.utils.formatUnits(bal.mul(Math.floor(pct*100)).div(100), dec); }
+        pmA.dispatchEvent(new Event('input'));
+      }catch(e){ console.warn('pctA', e); }
+    }));
+    manager.querySelectorAll('.pctB').forEach(btn=>btn.addEventListener('click', async ()=>{
+      const pct = Number(btn.getAttribute('data-pct'))/100;
+      if(!account) return alert('Connect wallet');
+      try{
+        if(metaBf.address==='XPL_NATIVE'){ const bal=await provider.getBalance(account); pmB.value = ethersLib.utils.formatUnits(bal.mul(Math.floor(pct*100)).div(100), metaBf.decimals||18); } else { const cb=new ethersLib.Contract(metaBf.address, ERC20_ABI, provider); const dec=await cb.decimals(); const bal=await cb.balanceOf(account); pmB.value = ethersLib.utils.formatUnits(bal.mul(Math.floor(pct*100)).div(100), dec); }
+        pmB.dispatchEvent(new Event('input'));
+      }catch(e){ console.warn('pctB', e); }
+    }));
+
+    // swap A/B button (FIX implemented)
+    swapAB.addEventListener('click', async ()=>{
+      // swap meta & fields: symbol labels are static, we swap values in inputs and balances
+      const tmpVal = pmA.value; pmA.value = pmB.value; pmB.value = tmpVal;
+      // swap balance text
+      const tmpBal = pmBalA.innerText; pmBalA.innerText = pmBalB.innerText; pmBalB.innerText = tmpBal;
+    });
+
+    // Add liquidity (works same but after success add to tx history (clickable) and not auto closing)
+    pmAdd.addEventListener('click', async ()=>{
+      try{
+        if(!window.ethereum) return alert('Connect wallet first');
+        if(!signer){ provider = new ethersLib.providers.Web3Provider(window.ethereum); signer = provider.getSigner(); }
+        const owner = await signer.getAddress();
+        const valA = pmA.value, valB = pmB.value;
+        if(!valA || !valB) return alert('Enter amounts');
+        const decA = metaAf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaAf.address, ERC20_ABI, provider)).decimals();
+        const decB = metaBf.address==='XPL_NATIVE'?18: await (new ethersLib.Contract(metaBf.address, ERC20_ABI, provider)).decimals();
+        const amountA = ethersLib.utils.parseUnits(valA, decA);
+        const amountB = ethersLib.utils.parseUnits(valB, decB);
+        const pairCheck = await factoryContract.getPair(onA, onB);
+        if(!pairCheck || pairCheck===ethersLib.constants.AddressZero) return alert('Pair missing. Create pool first.');
+        if(metaAf.address !== 'XPL_NATIVE'){
+          const ca = new ethersLib.Contract(metaAf.address, ERC20_ABI, provider);
+          const allowance = await ca.allowance(owner, ROUTER);
+          if(allowance.lt(amountA)){ pmMsg.innerText = 'Approving ' + metaAf.symbol + '...'; const tx = await ca.connect(signer).approve(ROUTER, ethersLib.constants.MaxUint256); await tx.wait(); }
+        }
+        if(metaBf.address !== 'XPL_NATIVE'){
+          const cb = new ethersLib.Contract(metaBf.address, ERC20_ABI, provider);
+          const allowance2 = await cb.allowance(owner, ROUTER);
+          if(allowance2.lt(amountB)){ pmMsg.innerText = 'Approving ' + metaBf.symbol + '...'; const tx2 = await cb.connect(signer).approve(ROUTER, ethersLib.constants.MaxUint256); await tx2.wait(); }
+        }
+        const routerS = routerContract.connect(signer);
+        const deadline = (await provider.getBlock('latest')).timestamp + 60*10;
+        pmMsg.innerText = 'Sending addLiquidity tx...';
+        let tx;
+        if(metaAf.address === 'XPL_NATIVE' || metaBf.address === 'XPL_NATIVE'){
+          if(metaAf.address === 'XPL_NATIVE'){
+            tx = await routerS.addLiquidityETH(onB, amountB, 0, 0, owner, deadline, { value: amountA });
+          } else {
+            tx = await routerS.addLiquidityETH(onA, amountA, 0, 0, owner, deadline, { value: amountB });
+          }
+        } else {
+          tx = await routerS.addLiquidity(onA, onB, amountA, amountB, 0, 0, owner, deadline);
+        }
+        pmMsg.innerHTML = `Tx sent: <a class="tx-link" data-h="${tx.hash}">${shortAddr(tx.hash)}</a>`;
+        // bind click
+        pmMsg.querySelector('a.tx-link').onclick = (e)=>{ const h=e.currentTarget.getAttribute('data-h'); if(h) location.href = SCAN_BASE + h; };
+        addTxToHistory(tx.hash, 'addLiquidity');
+        await tx.wait();
+        pmMsg.innerText = 'Liquidity added: ' + tx.hash;
+        // refresh my pools
+        await renderMyPools();
+      }catch(e){ console.error('pmAdd err', e); alert('Add failed: ' + (e.message||e)); pmMsg.innerText = 'Add failed'; }
+    });
+
+    // Remove liquidity if owner
+    if(isOwner && pmRemove){
+      pmRemove.addEventListener('click', async ()=>{
+        try{
+          if(!window.ethereum) return alert('Connect wallet first');
+          if(!signer){ provider = new ethersLib.providers.Web3Provider(window.ethereum); signer = provider.getSigner(); }
+          const ownerAddr = await signer.getAddress();
+          const pairC = new ethersLib.Contract(pairAddr, PAIR_ABI, provider);
+          const lpBal = await pairC.balanceOf(ownerAddr);
+          if(lpBal.isZero()) return alert('No LP tokens to remove');
+          const pctS = prompt('Percent to remove (0-100)', '25'); if(!pctS) return;
+          const pct = Math.max(0, Math.min(100, Number(pctS)));
+          const removeLP = lpBal.mul(pct).div(100);
+          try{
+            const lpToken = new ethersLib.Contract(pairAddr, ERC20_ABI, provider);
+            const allow = await lpToken.allowance(ownerAddr, ROUTER);
+            if(allow.lt(removeLP)){ const txa = await lpToken.connect(signer).approve(ROUTER, ethersLib.constants.MaxUint256); await txa.wait(); }
+          }catch(e){ console.warn('lp approve skip', e); }
+          const routerS = routerContract.connect(signer);
+          const deadline = (await provider.getBlock('latest')).timestamp + 60*10;
+          pmMsg.innerText = 'Removing liquidity...';
+          const tx = await routerS.removeLiquidity(onA, onB, removeLP, 0, 0, ownerAddr, deadline);
+          pmMsg.innerHTML = `Tx sent: <a class="tx-link" data-h="${tx.hash}">${shortAddr(tx.hash)}</a>`;
+          pmMsg.querySelector('a.tx-link').onclick = (e)=>{ const h=e.currentTarget.getAttribute('data-h'); if(h) location.href = SCAN_BASE + h; };
+          addTxToHistory(tx.hash, 'removeLiquidity');
+          await tx.wait();
+          pmMsg.innerText = 'Removed: ' + tx.hash;
+          await renderMyPools();
+        }catch(e){ console.error('pmRemove err', e); alert('Remove failed: ' + (e.message||e)); }
+      });
+    }
+
+  }catch(e){ console.error('onSelectPool err', e); alert('Load manager failed: ' + (e.message||e)); }
+}
+
+/* ============================
+  resolve meta
+   ============================ */
+async function resolveMeta(addr){
+  if(!addr) return { symbol: shortAddr(addr), decimals: 18, address: addr };
+  if(addr==='XPL_NATIVE') return { symbol:'XPL', decimals:18, address:addr };
+  try{ const c=new ethersLib.Contract(addr, ERC20_ABI, provider); const [sym,dec]=await Promise.all([c.symbol(), c.decimals()]); return { symbol: sym, decimals: dec, address: addr }; }catch(e){ return { symbol: shortAddr(addr), decimals: 18, address: addr }; }
+}
+
+/* ============================
+  custom token helpers
+   ============================ */
+function promptAddCustom(){
+  const addr = prompt('Paste token contract address (ERC20):');
+  if(!addr) return;
+  if(!ethersLib.utils.isAddress(addr)) return alert('Invalid address');
+  if(customTokens.some(t=>t.address && t.address.toLowerCase()===addr.toLowerCase())) return alert('Token already added');
+  customTokens.push({ symbol: shortAddr(addr), address: addr });
+  saveLS(LS_CUSTOM, customTokens);
+  populateTokenSelectors();
+  (async ()=>{ try{ const meta = await resolveMeta(addr); const idx = customTokens.findIndex(t=>t.address.toLowerCase()===addr.toLowerCase()); if(idx>=0){ customTokens[idx].symbol = meta.symbol; saveLS(LS_CUSTOM, customTokens); populateTokenSelectors(); } }catch(e){} })();
+  alert('Token added. Warning: Anyone can create tokens — verify before adding liquidity.');
+}
+function addCustomIfMissing(address){
+  if(!address || address==='XPL_NATIVE') return;
+  if(customTokens.some(t=>t.address && t.address.toLowerCase()===address.toLowerCase())) return;
+  customTokens.push({ symbol: shortAddr(address), address: address });
+  saveLS(LS_CUSTOM, customTokens);
+}
+
+/* ============================
+  helpers for import
+   ============================ */
+function getMergedTokensForImport(){
+  const arr = DEFAULT_TOKENS.concat(customTokens);
+  importedPairs.forEach(p=>{ arr.push({ symbol: p.tokenASym || shortAddr(p.tokenA), address: p.tokenA }); arr.push({ symbol: p.tokenBSym || shortAddr(p.tokenB), address: p.tokenB }); });
+  const map = new Map(); arr.forEach(x=>{ if(x && x.address) map.set(x.address.toLowerCase(), x); }); return Array.from(map.values());
+}
+
+/* ============================
+  small utility
+   ============================ */
+function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); } }
+
+/* ============================
+  Tx history initial load & render
+   ============================ */
+(function loadTxs(){
+  txHistory = loadLS(LS_TXS, txHistory || []);
+  // purge >24h
+  txHistory = txHistory.filter(t => (nowSec() - t.ts) < 24*3600);
+  saveLS(LS_TXS, txHistory);
+})();
+
+/* render tx history on page load (function defined earlier) */
+renderTxHistory();
+
+</script>
+<script src="appkit.bundle.js"></script>
+</body>
+</html>
