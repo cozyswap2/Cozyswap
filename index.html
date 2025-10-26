@@ -147,6 +147,7 @@
   } from "https://esm.sh/@wagmi/core@2.13.0";
 
   import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
+  import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
 
   // WalletConnect Project ID
   const projectId = "a9ca60975a434a874c01a34c5f7ff722";
@@ -159,7 +160,7 @@
     icons: ["https://avatars.githubusercontent.com/u/37784886"]
   };
 
-  // Custom Plasma Chain Configuration
+  // Tambahkan Plasma chain
   const plasmaChain = {
     id: 9745,
     name: 'Plasma Mainnet',
@@ -182,15 +183,11 @@
     },
   };
 
-  // Wagmi config
+  // Wagmi config dengan kedua chains
   const chains = [plasmaChain, mainnet];
-  const config = defaultWagmiConfig({ 
-    chains, 
-    projectId, 
-    metadata
-  });
+  const config = defaultWagmiConfig({ chains, projectId, metadata });
 
-  // Buat modal
+  // Buat modal dengan Plasma sebagai default
   const modal = createWeb3Modal({
     wagmiConfig: config,
     projectId,
@@ -205,25 +202,28 @@
 
   async function updateInfo() {
     const account = getAccount(config);
-    console.log('Account update:', account);
-    
     if (account?.address) {
       try {
+        // Coba ambil balance dari Plasma dulu
         const balance = await getBalance(config, { 
-          address: account.address
+          address: account.address,
+          chainId: plasmaChain.id
         });
         info.innerHTML = `
-          ✅ Terkoneksi:<br>
+          ✅ Terkoneksi ke Plasma:<br>
           <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
-          Saldo: <b>${parseFloat(balance.value) / 1e18} ${balance.symbol}</b><br>
-          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
+          Saldo: <b>${parseFloat(balance.value) / 1e18} XPL</b><br>
+          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
         `;
       } catch (error) {
-        console.error('Error getting balance:', error);
+        // Fallback ke Ethereum
+        const balance = await getBalance(config, { address: account.address });
         info.innerHTML = `
-          ✅ Terkoneksi:<br>
+          ✅ Terkoneksi (Ethereum):<br>
           <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
-          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
+          Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
+          <small class="text-yellow-400">Switch ke Plasma di wallet Anda</small><br>
+          <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
         `;
       }
     } else {
@@ -231,10 +231,7 @@
     }
   }
 
-  // Listen untuk account changes
-  watchAccount(config, {
-    onChange: updateInfo
-  });
+  watchAccount(config, updateInfo);
 
   window.disconnectWallet = async () => {
     await disconnect(config);
@@ -242,42 +239,23 @@
   };
 
   window.openWeb3Modal = function() {
-    console.log('Opening Web3Modal...');
     modal.open();
   };
 
-  // Force switch ke Plasma setelah connect - CARA YANG LEBIH RELIABLE
-  let isSwitching = false;
-  
+  // Auto switch ke Plasma setelah connect
   modal.subscribeEvents((event) => {
-    console.log('Web3Modal event:', event);
-    
-    if (event.type === 'CONNECT_SUCCESS' && !isSwitching) {
-      isSwitching = true;
-      console.log('Connect success, switching to Plasma...');
-      
+    if (event.type === 'CONNECT_SUCCESS') {
+      console.log('Wallet connected, attempting to switch to Plasma...');
       setTimeout(async () => {
         try {
           await switchChain(config, { chainId: plasmaChain.id });
           console.log('Successfully switched to Plasma');
         } catch (error) {
-          console.log('Switch failed, mungkin wallet tidak support:', error);
-          // Fallback: minta user switch manual
-          if (confirm('Switch ke Plasma Mainnet di wallet Anda untuk menggunakan CozySwap. Klik OK untuk instruksi.')) {
-            alert('Di wallet Anda:\n1. Buka network selection\n2. Pilih "Custom RPC" atau "Add Network"\n3. Tambahkan Plasma Mainnet dengan chain ID 9745');
-          }
+          console.log('Auto-switch failed, user may need to switch manually');
         }
-        isSwitching = false;
-      }, 1500);
+      }, 1000);
     }
   });
-
-  // Initial update
-  updateInfo();
-
-  // Debug: expose modal ke global scope
-  window.web3modal = modal;
-  console.log('Web3Modal initialized:', modal);
 </script>
 
 <!-- Existing Application Script -->
