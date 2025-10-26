@@ -142,11 +142,9 @@
     getAccount,
     getBalance,
     watchAccount,
-    disconnect
+    disconnect,
+    switchChain
   } from "https://esm.sh/@wagmi/core@2.13.0";
-
-  import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
-  import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
 
   // WalletConnect Project ID
   const projectId = "a9ca60975a434a874c01a34c5f7ff722";
@@ -182,26 +180,21 @@
     },
   };
 
-  // Wagmi config dengan Plasma chain
-  const chains = [plasmaChain, mainnet];
+  // Wagmi config hanya dengan Plasma
+  const chains = [plasmaChain];
   const config = defaultWagmiConfig({ 
     chains, 
     projectId, 
-    metadata,
-    enableWalletConnect: true,
-    enableInjected: true,
-    enableEIP6963: true,
-    enableCoinbase: true
+    metadata
   });
 
-  // Buat modal dengan Plasma sebagai chain default
+  // Buat modal dengan Plasma sebagai satu-satunya chain
   const modal = createWeb3Modal({
     wagmiConfig: config,
     projectId,
     chains,
     defaultChain: plasmaChain,
-    enableAnalytics: false,
-    enableOnramp: false
+    enableAnalytics: false
   });
 
   reconnect(config);
@@ -213,8 +206,7 @@
     if (account?.address) {
       try {
         const balance = await getBalance(config, { 
-          address: account.address,
-          chainId: plasmaChain.id 
+          address: account.address
         });
         info.innerHTML = `
           ✅ Terkoneksi ke Plasma:<br>
@@ -223,15 +215,19 @@
           <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
         `;
         
-        // Update aplikasi utama dengan koneksi wallet
-        if (window.ethereum && window.connectWallet) {
-          await window.connectWallet();
+        // Force switch ke Plasma chain jika belum
+        try {
+          await switchChain(config, { chainId: plasmaChain.id });
+        } catch (error) {
+          console.log('Network switch mungkin diperlukan manual');
         }
+
       } catch (error) {
         console.error('Error getting balance:', error);
         info.innerHTML = `
           ✅ Terkoneksi:<br>
           <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
+          <small class="text-yellow-400">Switch ke Plasma Mainnet di wallet Anda</small><br>
           <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded mt-1">Disconnect</button>
         `;
       }
@@ -245,30 +241,22 @@
   window.disconnectWallet = async () => {
     await disconnect(config);
     updateInfo();
-    // Reset aplikasi utama
-    if (window.walletAddress) {
-      window.walletAddress.innerText = "Not connected";
-    }
-    if (window.connectBtn) {
-      window.connectBtn.innerText = "Connect Wallet";
-    }
   };
 
   window.openWeb3Modal = function() {
     modal.open();
   };
 
-  // Auto switch ke Plasma chain ketika wallet connected
+  // Auto switch ke Plasma ketika modal terbuka
   modal.subscribeEvents((event) => {
     if (event.type === 'CONNECT_SUCCESS') {
-      // Coba switch ke Plasma chain
       setTimeout(async () => {
         try {
-          await modal.switchNetwork(plasmaChain);
+          await switchChain(config, { chainId: plasmaChain.id });
         } catch (error) {
-          console.log('Network switch mungkin tidak didukung oleh wallet');
+          console.log('Network switch diperlukan manual');
         }
-      }, 1000);
+      }, 500);
     }
   });
 
