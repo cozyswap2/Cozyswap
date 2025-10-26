@@ -336,6 +336,34 @@ async function connectWallet(){
   }catch(e){ alert(e.message || e); }
 }
 
+
+/* ============================
+  Connect wallet - MODIFIED untuk Web3Modal
+   ============================ */
+async function connectWallet(){
+  try{
+    // Jika sudah ada Web3Modal connection, gunakan itu
+    if (window.web3modalSync) {
+      await window.web3modalSync();
+      return;
+    }
+    
+    // Fallback ke method lama
+    if(!window.ethereum) return alert('MetaMask/injected wallet required');
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    try{ await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] }); } catch(e){ console.warn('switch chain failed', e); }
+    provider = new ethersLib.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    account = await signer.getAddress();
+    walletAddress.innerText = account.slice(0,6) + '...' + account.slice(-4);
+    connectBtn.innerText = 'Connected';
+    factoryContract = new ethersLib.Contract(FACTORY, FACTORY_ABI, provider);
+    routerContract = new ethersLib.Contract(ROUTER, ROUTER_ABI, provider);
+    populateTokenSelectors();
+    await renderMyPools();
+    updateCreateBalances();
+  }catch(e){ alert(e.message || e); }
+}
 /* ============================
   Tab switch
    ============================ */
@@ -889,9 +917,7 @@ function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTim
 /* render tx history on page load (function defined earlier) */
 renderTxHistory();
 
-</script>
-<script src="appkit.bundle.js"></script>
-<!-- Web3Modal Script - TAMBAHKAN INI -->
+<!-- Web3Modal Script -->
 <script type="module">
   import {
     createWeb3Modal,
@@ -963,68 +989,66 @@ renderTxHistory();
     const account = getAccount(config);
     
     if (account?.address) {
+      // Update Web3Modal UI
       try {
         const balance = await getBalance(config, { 
           address: account.address,
           chainId: plasmaChain.id
         });
-        
         info.innerHTML = `
           ✅ Terkoneksi ke Plasma:<br>
           <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
           Saldo: <b>${parseFloat(balance.value) / 1e18} XPL</b><br>
           <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
         `;
-
-        // ⭐⭐ SINCRONISASI KE APLIKASI UTAMA ⭐⭐
-        if (window.ethers && window.provider) {
-          try {
-            // Update aplikasi utama dengan wallet yang terhubung
-            window.provider = new window.ethers.providers.Web3Provider(window.ethereum);
-            window.signer = window.provider.getSigner();
-            window.account = account.address;
-            
-            if (window.walletAddress) {
-              window.walletAddress.innerText = account.address.slice(0,6) + '...' + account.address.slice(-4);
-            }
-            if (window.connectBtn) {
-              window.connectBtn.innerText = 'Connected';
-            }
-            
-            // Trigger update di aplikasi utama
-            if (window.updateCreateBalances) {
-              window.updateCreateBalances();
-            }
-            if (window.renderMyPools) {
-              window.renderMyPools();
-            }
-            
-          } catch (e) {
-            console.log('Sync dengan app utama:', e);
-          }
-        }
-
       } catch (error) {
-        const balance = await getBalance(config, { address: account.address });
         info.innerHTML = `
-          ✅ Terkoneksi (Ethereum):<br>
+          ✅ Terkoneksi:<br>
           <b>${account.address.slice(0, 8)}...${account.address.slice(-6)}</b><br>
-          Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
-          <small class="text-yellow-400">Switch ke Plasma di wallet</small><br>
           <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
         `;
       }
+
+      // SINKRONISASI KE APLIKASI UTAMA
+      if (window.ethers && window.provider) {
+        try {
+          // Inject provider ke aplikasi utama
+          window.provider = new window.ethers.providers.Web3Provider(window.ethereum);
+          window.signer = window.provider.getSigner();
+          window.account = account.address;
+          
+          // Update UI aplikasi utama
+          if (window.walletAddress) {
+            window.walletAddress.innerText = account.address.slice(0,6) + '...' + account.address.slice(-4);
+          }
+          if (window.connectBtn) {
+            window.connectBtn.innerText = 'Connected';
+          }
+          
+          // Panggil fungsi update aplikasi utama
+          if (window.updateCreateBalances) {
+            window.updateCreateBalances();
+          }
+          if (window.renderMyPools) {
+            window.renderMyPools();
+          }
+          
+          console.log('Berhasil sinkronisasi dengan aplikasi utama');
+        } catch (error) {
+          console.error('Error sinkronisasi:', error);
+        }
+      }
+      
     } else {
       info.innerHTML = "Belum terkoneksi.";
       
-      // ⭐⭐ RESET APLIKASI UTAMA ⭐⭐
+      // Reset aplikasi utama
       if (window.walletAddress) {
         window.walletAddress.innerText = "Not connected";
       }
       if (window.connectBtn) {
         window.connectBtn.innerText = "Connect Wallet";
       }
-      window.account = null;
     }
   }
 
@@ -1032,28 +1056,37 @@ renderTxHistory();
 
   window.disconnectWallet = async () => {
     await disconnect(config);
-    syncWithMainApp();
+    await syncWithMainApp();
   };
 
   window.openWeb3Modal = function() {
     modal.open();
   };
 
-  // Auto switch ke Plasma
+  // Auto switch ke Plasma + sinkronisasi
   modal.subscribeEvents((event) => {
+    console.log('Web3Modal event:', event.type);
+    
     if (event.type === 'CONNECT_SUCCESS') {
       setTimeout(async () => {
         try {
           await switchChain(config, { chainId: plasmaChain.id });
+          console.log('Switched to Plasma');
         } catch (error) {
-          console.log('Auto-switch failed');
+          console.log('Switch failed, continuing anyway...');
         }
+        
+        // Pastikan sinkronisasi setelah connect
+        setTimeout(syncWithMainApp, 500);
       }, 1000);
     }
   });
 
   // Initial sync
   syncWithMainApp();
+
+  // Export fungsi untuk akses global
+  window.web3modalSync = syncWithMainApp;
 </script>
 
 </body>
