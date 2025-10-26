@@ -130,7 +130,48 @@
 
     <footer class="mt-6 muted small text-center">CozySwap • Powered by Plasma • @CozySwap</footer>
   </div>
- <script type="module">
+ 
+<script>
+/* ============================
+  Config & dependencies
+   ============================ */
+const RPC = 'https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4';
+const CHAIN_ID_HEX = '0x2611';
+const ROUTER = '0x89E695B38610e78a77Fb310458Dfd855505AD239';
+const FACTORY = '0xa252e44D3478CeBb1a3D59C9146CD860cb09Ec93';
+const WXPL = '0x6100E367285b01F48D07953803A2d8dCA5D19873';
+const SCAN_BASE = 'https://plasmascan.to/tx/'; // user confirmed
+
+const DEFAULT_TOKENS = [
+  { symbol: 'XPL', address: 'XPL_NATIVE', decimals: 18 },
+  { symbol: 'COZY', address: '0x06e2ef46662834f4e42dbf9ff9222b077c57df5c', decimals: 18 },
+  { symbol: 'USDT', address: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', decimals: 6 },
+  { symbol: 'WETH', address: '0x9895D81bB462A195b4922ED7De0e3ACD007c32CB', decimals: 18 }
+];
+
+const POPULAR_PAIRS = [
+  ['XPL_NATIVE','0x06e2ef46662834f4e42dbf9ff9222b077c57df5c'],
+  ['XPL_NATIVE','0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb']
+];
+
+const ERC20_ABI = [
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender,uint256 amount) returns (bool)',
+  'function allowance(address owner,address spender) view returns (uint256)'
+];
+const FACTORY_ABI = ['function getPair(address,address) view returns (address)','function createPair(address,address) returns (address)'];
+const ROUTER_ABI = [
+  'function addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256) returns (uint256,uint256,uint256)',
+  'function addLiquidityETH(address token,uint amountTokenDesired,uint amountTokenMin,uint amountETHMin,address to,uint deadline) payable returns (uint256,uint256,uint256)',
+  'function removeLiquidity(address,address,uint256,uint256,uint256,address,uint256) returns (uint256,uint256)'
+];
+const PAIR_ABI = ['function getReserves() view returns (uint112,uint112,uint32)','function token0() view returns (address)','function token1() view returns (address)','function balanceOf(address) view returns (uint256)','function totalSupply() view returns (uint256)'];
+
+/* ============================
+  Ethers loader (try CDN)
+   ============================ */
       import {
         createWeb3Modal,
         defaultWagmiConfig
@@ -194,64 +235,8 @@
         await disconnect(config);
         updateInfo();
       };
-    </script>
-<script>
-/* ============================
-  Config & dependencies
-   ============================ */
-const RPC = 'https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4';
-const CHAIN_ID_HEX = '0x2611';
-const ROUTER = '0x89E695B38610e78a77Fb310458Dfd855505AD239';
-const FACTORY = '0xa252e44D3478CeBb1a3D59C9146CD860cb09Ec93';
-const WXPL = '0x6100E367285b01F48D07953803A2d8dCA5D19873';
-const SCAN_BASE = 'https://plasmascan.to/tx/'; // user confirmed
+    
 
-const DEFAULT_TOKENS = [
-  { symbol: 'XPL', address: 'XPL_NATIVE', decimals: 18 },
-  { symbol: 'COZY', address: '0x06e2ef46662834f4e42dbf9ff9222b077c57df5c', decimals: 18 },
-  { symbol: 'USDT', address: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', decimals: 6 },
-  { symbol: 'WETH', address: '0x9895D81bB462A195b4922ED7De0e3ACD007c32CB', decimals: 18 }
-];
-
-const POPULAR_PAIRS = [
-  ['XPL_NATIVE','0x06e2ef46662834f4e42dbf9ff9222b077c57df5c'],
-  ['XPL_NATIVE','0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb']
-];
-
-const ERC20_ABI = [
-  'function decimals() view returns (uint8)',
-  'function symbol() view returns (string)',
-  'function balanceOf(address) view returns (uint256)',
-  'function approve(address spender,uint256 amount) returns (bool)',
-  'function allowance(address owner,address spender) view returns (uint256)'
-];
-const FACTORY_ABI = ['function getPair(address,address) view returns (address)','function createPair(address,address) returns (address)'];
-const ROUTER_ABI = [
-  'function addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256) returns (uint256,uint256,uint256)',
-  'function addLiquidityETH(address token,uint amountTokenDesired,uint amountTokenMin,uint amountETHMin,address to,uint deadline) payable returns (uint256,uint256,uint256)',
-  'function removeLiquidity(address,address,uint256,uint256,uint256,address,uint256) returns (uint256,uint256)'
-];
-const PAIR_ABI = ['function getReserves() view returns (uint112,uint112,uint32)','function token0() view returns (address)','function token1() view returns (address)','function balanceOf(address) view returns (uint256)','function totalSupply() view returns (uint256)'];
-
-/* ============================
-  Ethers loader (try CDN)
-   ============================ */
-const ETHER_CDNS = [
-  'https://cdn.jsdelivr.net/npm/ethers@5.7.1/dist/ethers.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.1/ethers.umd.min.js'
-];
-async function loadEthers(){
-  if(window.ethers) return window.ethers;
-  for(const u of ETHER_CDNS){
-    try{
-      await new Promise((res,rej)=>{
-        const s=document.createElement('script'); s.src=u; s.async=true; s.onload=res; s.onerror=rej; document.head.appendChild(s);
-      });
-      if(window.ethers) return window.ethers;
-    }catch(e){ console.warn('cd fail', u); }
-  }
-  throw new Error('ethers not available');
-}
 
 /* ============================
   State & DOM
