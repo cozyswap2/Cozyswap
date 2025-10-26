@@ -27,8 +27,8 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <div id="walletAddress" class="muted small">Not connected</div>
-        <button id="connectBtn" class="px-3 py-2 rounded-lg btn-grad">Connect Wallet</button>
+        <div id="info" class="muted small">Belum terkoneksi.</div>
+        <button id="connectBtn" class="px-3 py-2 rounded-lg btn-grad" onclick="openWeb3Modal()">Connect Wallet</button>
       </div>
     </header>
 
@@ -130,7 +130,79 @@
 
     <footer class="mt-6 muted small text-center">CozySwap • Powered by Plasma • @CozySwap</footer>
   </div>
- 
+
+<!-- Web3Modal Script -->
+<script type="module">
+  import {
+    createWeb3Modal,
+    defaultWagmiConfig
+  } from "https://esm.sh/@web3modal/wagmi?bundle";
+
+  import {
+    getAccount,
+    getBalance,
+    watchAccount,
+    disconnect
+  } from "https://esm.sh/@wagmi/core@2.13.0";
+
+  import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
+  import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
+
+  // WalletConnect Project ID
+  const projectId = "a9ca60975a434a874c01a34c5f7ff722";
+
+  // Metadata domain
+  const metadata = {
+    name: "CozySwap HTML",
+    description: "WalletConnect v2 Pure HTML Demo",
+    url: "https://saputangan.edgeone.app", // sesuaikan domain
+    icons: ["https://avatars.githubusercontent.com/u/37784886"]
+  };
+
+  // Wagmi config
+  const chains = [mainnet];
+  const config = defaultWagmiConfig({ chains, projectId, metadata });
+
+  // Buat modal dulu baru panggil reconnect (ini penting)
+  const modal = createWeb3Modal({
+    wagmiConfig: config,
+    projectId,
+    chains,
+    enableAnalytics: false
+  });
+
+  reconnect(config);
+
+  const info = document.getElementById("info");
+
+  async function updateInfo() {
+    const account = getAccount(config);
+    if (account?.address) {
+      const balance = await getBalance(config, { address: account.address });
+      info.innerHTML = `
+        ✅ Terkoneksi ke:<br>
+        <b>${account.address}</b><br>
+        Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
+        <button onclick="disconnectWallet()" class="px-2 py-1 text-xs bg-red-600 rounded">Disconnect</button>
+      `;
+    } else {
+      info.innerHTML = "Belum terkoneksi.";
+    }
+  }
+
+  watchAccount(config, updateInfo);
+
+  window.disconnectWallet = async () => {
+    await disconnect(config);
+    updateInfo();
+  };
+
+  window.openWeb3Modal = function() {
+    modal.open();
+  };
+</script>
+
+<!-- Existing Application Script -->
 <script>
 /* ============================
   Config & dependencies
@@ -172,71 +244,22 @@ const PAIR_ABI = ['function getReserves() view returns (uint112,uint112,uint32)'
 /* ============================
   Ethers loader (try CDN)
    ============================ */
-      import {
-        createWeb3Modal,
-        defaultWagmiConfig
-      } from "https://esm.sh/@web3modal/wagmi?bundle";
-
-      import {
-        getAccount,
-        getBalance,
-        watchAccount,
-        disconnect
-      } from "https://esm.sh/@wagmi/core@2.13.0";
-
-      import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
-      import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
-
-      // WalletConnect Project ID
-      const projectId = "a9ca60975a434a874c01a34c5f7ff722";
-
-      // Metadata domain
-      const metadata = {
-        name: "CozySwap HTML",
-        description: "WalletConnect v2 Pure HTML Demo",
-        url: "https://cozyswap2.github.io/Cozyswap/", // sesuaikan domain
-        icons: ["https://avatars.githubusercontent.com/u/37784886"]
-      };
-
-      // Wagmi config
-      const chains = [mainnet];
-      const config = defaultWagmiConfig({ chains, projectId, metadata });
-
-      // Buat modal dulu baru panggil reconnect (ini penting)
-      const modal = createWeb3Modal({
-        wagmiConfig: config,
-        projectId,
-        chains,
-        enableAnalytics: false
+const ETHER_CDNS = [
+  'https://cdn.jsdelivr.net/npm/ethers@5.7.1/dist/ethers.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.1/ethers.umd.min.js'
+];
+async function loadEthers(){
+  if(window.ethers) return window.ethers;
+  for(const u of ETHER_CDNS){
+    try{
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script'); s.src=u; s.async=true; s.onload=res; s.onerror=rej; document.head.appendChild(s);
       });
-
-      reconnect(config);
-
-      const info = document.getElementById("info");
-
-      async function updateInfo() {
-        const account = getAccount(config);
-        if (account?.address) {
-          const balance = await getBalance(config, { address: account.address });
-          info.innerHTML = `
-            ✅ Terkoneksi ke:<br>
-            <b>${account.address}</b><br>
-            Saldo: <b>${parseFloat(balance.value) / 1e18} ETH</b><br>
-            <button onclick="disconnectWallet()">Disconnect</button>
-          `;
-        } else {
-          info.innerHTML = "Belum terkoneksi.";
-        }
-      }
-
-      watchAccount(config, updateInfo);
-
-      window.disconnectWallet = async () => {
-        await disconnect(config);
-        updateInfo();
-      };
-    
-
+      if(window.ethers) return window.ethers;
+    }catch(e){ console.warn('cd fail', u); }
+  }
+  throw new Error('ethers not available');
+}
 
 /* ============================
   State & DOM
@@ -252,7 +275,7 @@ let importedPairs = loadLS(LS_IMPORTED, []);
 let txHistory = loadLS(LS_TXS, []);
 
 const connectBtn = document.getElementById('connectBtn');
-const walletAddress = document.getElementById('walletAddress');
+const walletAddress = document.getElementById('info');
 const tabMy = document.getElementById('tabMy'), tabExplore = document.getElementById('tabExplore'), tabCreate = document.getElementById('tabCreate');
 const viewMy = document.getElementById('viewMy'), viewExplore = document.getElementById('viewExplore'), viewCreate = document.getElementById('viewCreate');
 const positionsList = document.getElementById('positionsList'), noPositionsMsg = document.getElementById('noPositionsMsg');
@@ -320,7 +343,7 @@ function renderTxHistory(){
   UI Bindings
    ============================ */
 function bindUI(){
-  connectBtn.onclick = connectWallet;
+  // connectBtn.onclick = connectWallet; // Comment out karena sudah menggunakan Web3Modal
   tabMy.onclick = ()=>switchTab('my');
   tabExplore.onclick = ()=>switchTab('explore');
   tabCreate.onclick = ()=>switchTab('create');
@@ -340,7 +363,7 @@ function bindUI(){
 }
 
 /* ============================
-  Connect wallet
+  Connect wallet - Diperbarui untuk Web3Modal
    ============================ */
 async function connectWallet(){
   try{
