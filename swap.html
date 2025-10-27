@@ -1080,11 +1080,7 @@ connectBtn.onclick = async () => {
       }
     };
 
-    addTokenBtn.onclick = async () => {
-      const addr = prompt('Paste custom token address'); 
-      if (!addr) return; 
-      if (!utils.isAddress(addr)) return alert('Invalid address');
-
+    
       const c = new Contract(addr, ERC20, provider || new providers.JsonRpcProvider(RPC));
       let sym = 'TOKEN'; 
       try { 
