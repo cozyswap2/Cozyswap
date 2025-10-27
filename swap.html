@@ -573,67 +573,12 @@
 
   <script>
   (async ()=>{
-    // Load ethers dari CDN
-    const CDNS = [
-      'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.1/ethers.umd.min.js'
-    ];
-
-    async function loadEthers() {
-      if (window.ethers) return window.ethers;
-      for (const url of CDNS) {
-        try {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.async = true;
-            script.crossOrigin = 'anonymous';
-            script.onload = () => resolve(window.ethers);
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-          if (window.ethers) return window.ethers;
-        } catch (e) {
-          console.warn('Failed to load from', url, e);
-        }
-      }
-      throw new Error('Could not load ethers.js');
-    }
-
-    // Load ethers
-    const ethers = await loadEthers();
+    
+    // Load ethers as ESM (avoid injecting multiple UMD versions)
+    const ethersModule = await import('https://cdn.jsdelivr.net/npm/ethers@5.7.1/dist/ethers.esm.min.js');
+    const ethers = ethersModule;
     const { utils, BigNumber, providers, Contract } = ethers;
 
-    const RPC = 'https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4';
-    const CHAIN_ID = 9745;
-    const CHAIN_ID_HEX = '0x2611';
-    const ROUTER = '0x89E695B38610e78a77Fb310458Dfd855505AD239';
-    const FACTORY = '0xa252e44D3478CeBb1a3D59C9146CD860cb09Ec93';
-    const WXPL = '0x6100E367285b01F48D07953803A2d8dCA5D19873';
-
-    const ERC20 = [
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-      'function balanceOf(address) view returns (uint256)',
-      'function approve(address spender,uint256 amount) returns (bool)',
-      'function allowance(address owner,address spender) view returns (uint256)'
-    ];
-
-    const ROUTER_ABI = [
-      'function getAmountsOut(uint256,address[]) view returns (uint256[])',
-      'function swapExactTokensForTokens(uint256,uint256,address[],address,uint256)',
-      'function swapExactETHForTokens(uint256,address[],address,uint256) payable',
-      'function swapExactTokensForETH(uint256,uint256,address[],address,uint256)'
-    ];
-
-    const FACTORY_ABI = [
-      'function getPair(address,address) view returns (address)'
-    ];
-
-    const PAIR_ABI = [
-      'function getReserves() view returns (uint112,uint112,uint32)',
-      'function token0() view returns (address)',
-      'function token1() view returns (address)'
-    ];
 
     // Elements
     const connectBtn = document.getElementById('connectBtn');
