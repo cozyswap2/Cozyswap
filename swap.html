@@ -452,6 +452,124 @@
   }
   </script>
 
+<!-- ========================= -->
+<!--  WALLETCONNECT (Web3Modal + wagmi) -->
+<!--  Paste this BEFORE the big "(async ()=>{})" script -->
+<!-- ========================= -->
+<script type="module">
+  import { createWeb3Modal, defaultWagmiConfig } from "https://esm.sh/@web3modal/wagmi?bundle";
+  import { getAccount, getBalance, watchAccount, disconnect } from "https://esm.sh/@wagmi/core@2.13.0";
+  import { configureChains } from "https://esm.sh/@wagmi/core@2.13.0";
+  import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
+  import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
+
+  // === PLASMA CHAIN CONFIG (custom) ===
+  const plasmaChain = {
+    id: 9745,
+    name: "Plasma Mainnet",
+    network: "plasma-mainnet",
+    nativeCurrency: { name: "XPL", symbol: "XPL", decimals: 18 },
+    rpcUrls: {
+      default: { http: ["https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4"] },
+      public: { http: ["https://plasma-mainnet.g.alchemy.com/v2/MuLXFm60Tsz3ntyrSC1O4"] }
+    },
+    blockExplorers: { default: { name: "PlasmaScan", url: "https://plasmascan.to" } }
+  };
+
+  // WalletConnect Project ID (ganti kalau perlu)
+  const projectId = "a9ca60975a434a874c01a34c5f7ff722";
+
+  // wagmi chains config (tambahkan plasmaChain plus mainnet as fallback)
+  const chains = [plasmaChain, mainnet];
+  // defaultWagmiConfig expects chains + projectId + connectors; using convenience helper
+  const wagmiConfig = defaultWagmiConfig({ chains, projectId, metadata: {
+    name: "CozySwap DEX",
+    description: "CozySwap — Plasma DEX",
+    url: "https://cozyswap.net/",
+    icons: ["https://avatars.githubusercontent.com/u/37784886"]
+  }});
+
+  // create modal
+  const modal = createWeb3Modal({
+    wagmiConfig,
+    projectId,
+    chains,
+    enableAnalytics: false
+  });
+
+  // auto reconnect if session exists
+  reconnect(wagmiConfig);
+
+  // UI hooks (must match your page)
+  const connectBtn = document.getElementById("connectBtn");
+  const infoEl = document.getElementById("info") || document.getElementById("status");
+
+  function short(addr){ return addr ? addr.slice(0,6) + "..." + addr.slice(-4) : ""; }
+
+  async function updateWalletUI(){
+    try {
+      const acc = getAccount(wagmiConfig);
+      if (acc?.address) {
+        if (connectBtn) connectBtn.textContent = short(acc.address);
+        if (infoEl) {
+          try {
+            const bal = await getBalance(wagmiConfig, { address: acc.address });
+            // format to human XPL
+            infoEl.textContent = ((parseFloat(bal.value) / 1e18).toFixed(4)) + " XPL • " + short(acc.address);
+          } catch (e) {
+            infoEl.textContent = short(acc.address);
+          }
+        }
+      } else {
+        if (connectBtn) connectBtn.textContent = "Connect Wallet";
+        if (infoEl) infoEl.textContent = "Not connected";
+      }
+    } catch (e) { console.warn("updateWalletUI", e); }
+  }
+
+  // watch for account changes
+  watchAccount(wagmiConfig, updateWalletUI);
+
+  // connect button handler (opens modal). After connect, call window.ensureProvider (your script's function)
+  connectBtn?.addEventListener("click", async () => {
+    try {
+      const acc = getAccount(wagmiConfig);
+      if (acc?.address) {
+        // already connected via modal/wagmi -> disconnect
+        await disconnect(wagmiConfig);
+        await updateWalletUI();
+        // let main script re-evaluate provider
+        if (typeof window.ensureProvider === "function") {
+          try { await window.ensureProvider(); } catch (e) { console.warn(e); }
+        }
+        return;
+      }
+      // open modal for user to pick wallet (MetaMask, WalletConnect, etc.)
+      modal.open();
+
+      // after modal operation, allow some time then ask main script to hook provider
+      setTimeout(async () => {
+        if (typeof window.ensureProvider === "function") {
+          try {
+            await window.ensureProvider();
+            if (typeof window.updateBalances === "function") await window.updateBalances();
+            if (typeof window.computeOutput === "function") await window.computeOutput();
+          } catch (e) { console.warn("ensureProvider error:", e); }
+        }
+        await updateWalletUI();
+      }, 900);
+    } catch (e) { console.error("connectBtn handler", e); }
+  });
+
+  // expose helper for debugging
+  window.__cozy_w3m_modal = modal;
+  window.updateWalletUI = updateWalletUI;
+</script>
+<!-- ========================= -->
+<!-- END WALLETCONNECT MODULE -->
+<!-- ========================= -->
+
+
   <script>
   (async ()=>{
     // Load ethers dari CDN
@@ -917,12 +1035,19 @@
       }
     }
 
-    // CONNECT BUTTON
-    connectBtn.onclick = async () => {
-      if (!window.ethereum) {
-        alert('MetaMask not detected. Please install MetaMask to connect your wallet.');
-        return;
-      }
+    // CONNECT BUTTON (REPLACED — handled by Web3Modal module)
+connectBtn.onclick = async () => {
+  // If Web3Modal module is present, let it handle connection.
+  if (window.__cozy_w3m_modal) {
+    // do nothing — module will open modal
+    return;
+  }
+  // Fallback: old behavior (injected provider)
+  try {
+    await ensureProvider();
+  } catch (e) { console.warn('Fallback ensureProvider failed', e); }
+};
+
 
       try {
         const accounts = await window.ethereum.request({
