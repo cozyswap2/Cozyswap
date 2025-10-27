@@ -643,7 +643,7 @@
     const toReadable = document.getElementById('toReadable');
     const priceImpactEl = document.getElementById('priceImpact');
     const liquidityInfoEl = document.getElementById('liquidityInfo');
-    const approveOrSwapBtn = document.getElementById('approveOrSwap');
+    const approveOrSwapBtn = document.getElementById('approveOrSwap'); // ← INI
     const txHashEl = document.getElementById('txHash');
     const maxFromBtn = document.getElementById('maxFrom');
     const addTokenBtn = document.getElementById('addTokenBtn');
@@ -651,48 +651,11 @@
     const fromBalanceEl = document.getElementById('fromBalance');
     const toBalanceEl = document.getElementById('toBalance');
 
-    let provider = null;
-    let signer = null;
-    let account = null;
-    let router = null;
-    let factory = null;
+    // ... kode lainnya ...
 
-    // Default tokens dengan XPL dan COZY sebagai default
-    const DEFAULTS = [
-      {symbol: 'XPL', address: 'XPL_NATIVE', logoURI: 'https://cozyswap1.github.io/Cozyswap/assets/xpl.png'},
-      {symbol: 'COZY', address: '0x06e2ef46662834f4e42dbf9ff9222b077c57df5c', logoURI: 'https://photos.pinksale.finance/file/pinksale-logo-upload/1760207026339-3c980e075709984d5362d951f45695a5.png'},
-      {symbol: 'WXPL', address: WXPL, logoURI: 'https://cozyswap1.github.io/Cozyswap/assets/xpl.png'},
-      {symbol: 'WETH', address: '0x9895D81bB462A195b4922ED7De0e3ACD007c32CB', logoURI: 'https://cozyswap1.github.io/Cozyswap/assets/weth.png'},
-      {symbol: 'USDT0', address: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', logoURI: 'https://cozyswap1.github.io/Cozyswap/assets/USDT0.png'},
-      {symbol: 'CRY', address: '0x59cdd876f3b8a4e81ecb467078ea009f80052fa2', logoURI: 'https://cozyswap1.github.io/Cozyswap/assets/crybaby.png'}
-    ];
-
-    // Token management
-    const TOKENS_KEY = 'cozy_tokens_v2';
-    function loadTokens() {
-      try {
-        const raw = localStorage.getItem(TOKENS_KEY);
-        if (raw) return JSON.parse(raw);
-      } catch (e) {}
-      return DEFAULTS.slice();
-    }
-
-    function saveTokens(list) {
-      localStorage.setItem(TOKENS_KEY, JSON.stringify(list));
-    }
-
-    let tokens = loadTokens();
-    let selectedFromToken = tokens[0]; // XPL sebagai default
-    let selectedToToken = tokens[1];   // COZY sebagai default
-
-    // Helper function untuk default logo
-    function getDefaultLogo(symbol) {
-      const defaultLogos = {
-        'XPL': 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMCIgY3k9IjEwIiByPSIxMCIgZmlsbD0iIzZjNjNmZiIvPjwvc3ZnPg==',
-        'WXPL': 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMCIgY3k9IjEwIiByPSIxMCIgZmlsbD0iIzAwYzZmZiIvPjwvc3ZnPg==',
-        'COZY': 'https://photos.pinksale.finance/file/pinksale-logo-upload/1760207026339-3c980e075709984d5362d951f45695a5.png'
-      };
-      return defaultLogos[symbol] || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMCIgY3k9IjEwIiByPSIxMCIgZmlsbD0iIzlmOWY5ZiIvPjwvc3ZnPg==';
+    // ✅ PERBAIKAN: Set default onclick handler untuk tombol swap
+    function initializeSwapButton() {
+        updateSwapButton(); // Ini akan set onclick ke executeSwap atau executeUnwrap
     }
 
     // ✅ FUNGSI BARU: Auto ganti button Swap ↔ Unwrap
@@ -708,11 +671,11 @@
       if (isXPLPair) {
         swapBtn.textContent = 'Unwrap';
         swapBtn.className = 'unwrap-btn';
-        swapBtn.onclick = executeUnwrap;
+        swapBtn.onclick = executeUnwrap; // ← SET ONCLICK
       } else {
         swapBtn.textContent = 'Swap';
         swapBtn.className = 'btn';
-        swapBtn.onclick = executeSwap;
+        swapBtn.onclick = executeSwap; // ← SET ONCLICK
       }
     }
 
@@ -720,7 +683,15 @@
     async function executeUnwrap() {
       try {
         if (!window.ethereum) return alert('Connect wallet first');
-        if (!signer) signer = new providers.Web3Provider(window.ethereum).getSigner();
+        if (!signer) {
+          // Coba dapatkan signer dari Web3Modal connection
+          if (window.ethereum) {
+            provider = new providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+          } else {
+            return alert('Wallet not connected');
+          }
+        }
 
         const owner = await signer.getAddress();
         const from = selectedFromToken.address;
@@ -797,9 +768,13 @@
     // ✅ FUNGSI BARU: Execute Swap biasa
     async function executeSwap() {
       try {
-        if (!provider) return alert('Provider missing');
         if (!window.ethereum) return alert('Connect wallet first');
-        if (!signer) signer = new providers.Web3Provider(window.ethereum).getSigner();
+        
+        // Pastikan signer tersedia
+        if (!signer) {
+          provider = new providers.Web3Provider(window.ethereum);
+          signer = provider.getSigner();
+        }
 
         const owner = await signer.getAddress();
         const from = selectedFromToken.address;
@@ -811,12 +786,15 @@
         const decFrom = from === 'XPL_NATIVE' ? 18 : await (new Contract(from, ERC20, provider)).decimals();
         const amountIn = utils.parseUnits(amtStr, decFrom);
 
-        const allowanceOk = await hasAllowance(from, owner, amountIn);
-        if (!allowanceOk) {
-          const ok = confirm('Token not approved. Approve unlimited to router?');
-          if (!ok) return;
-          const res = await approveToken(from);
-          if (!res) return;
+        // Check allowance untuk token non-native
+        if (from !== 'XPL_NATIVE') {
+          const allowanceOk = await hasAllowance(from, owner, amountIn);
+          if (!allowanceOk) {
+            const ok = confirm('Token not approved. Approve unlimited to router?');
+            if (!ok) return;
+            const res = await approveToken(from);
+            if (!res) return;
+          }
         }
 
         const path = [from === 'XPL_NATIVE' ? WXPL : from, to === 'XPL_NATIVE' ? WXPL : to];
@@ -830,53 +808,45 @@
           const amountOutMin = out.mul(10000 - slBps).div(10000);
           const deadline = (await provider.getBlock('latest')).timestamp + (parseInt(document.getElementById('deadline').value || 10) * 60);
 
-          setStatus('Sending swap (ETH) ...');
+          setStatus('Sending swap...');
           const tx = await routerSigner.swapExactETHForTokens(amountOutMin, path, owner, deadline, { value: amountIn, gasLimit: 1500000 });
           txHashEl.innerText = 'Tx: ' + tx.hash;
           await tx.wait();
           setStatus('Swap confirmed');
-          alert('Swap complete: ' + tx.hash);
-          txHashEl.innerText = 'Tx: ' + tx.hash;
-          updateBalances();
-          computeOutput();
-          return;
-        }
-
-        const amounts = await router.getAmountsOut(amountIn, path);
-        const out = amounts[amounts.length - 1];
-        const sl = parseFloat(document.getElementById('slippage').value || 0.5);
-        const slBps = Math.floor(sl * 100);
-        const amountOutMin = out.mul(10000 - slBps).div(10000);
-        const deadline = (await provider.getBlock('latest')).timestamp + (parseInt(document.getElementById('deadline').value || 10) * 60);
-
-        setStatus('Sending swap...');
-        let tx;
-
-        if (to === 'XPL_NATIVE') {
-          tx = await routerSigner.swapExactTokensForETH(amountIn, amountOutMin, path, owner, deadline, { gasLimit: 1500000 });
+          alert('Swap complete!');
+          
         } else {
-          tx = await routerSigner.swapExactTokensForTokens(amountIn, amountOutMin, path, owner, deadline, { gasLimit: 1500000 });
-        }
+          const amounts = await router.getAmountsOut(amountIn, path);
+          const out = amounts[amounts.length - 1];
+          const sl = parseFloat(document.getElementById('slippage').value || 0.5);
+          const slBps = Math.floor(sl * 100);
+          const amountOutMin = out.mul(10000 - slBps).div(10000);
+          const deadline = (await provider.getBlock('latest')).timestamp + (parseInt(document.getElementById('deadline').value || 10) * 60);
 
-        const scanUrl = `https://plasmascan.to/tx/${tx.hash}`;
-        txHashEl.innerHTML = `
-          <span class="text-gray-300 text-sm">Tx:</span>
-          <a href="${scanUrl}" target="_blank" class="text-blue-400 hover:underline">
-            ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}
-          </a>
-        `;
-        await tx.wait();
-        setStatus('Swap confirmed');
-        alert('Swap complete!');
-        txHashEl.innerHTML = `
-          <span class="text-gray-300 text-sm">Tx:</span>
-          <a href="${scanUrl}" target="_blank" class="text-blue-400 hover:underline">
-            ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}
-          </a>
-        `;
+          setStatus('Sending swap...');
+          let tx;
+
+          if (to === 'XPL_NATIVE') {
+            tx = await routerSigner.swapExactTokensForETH(amountIn, amountOutMin, path, owner, deadline, { gasLimit: 1500000 });
+          } else {
+            tx = await routerSigner.swapExactTokensForTokens(amountIn, amountOutMin, path, owner, deadline, { gasLimit: 1500000 });
+          }
+
+          const scanUrl = `https://plasmascan.to/tx/${tx.hash}`;
+          txHashEl.innerHTML = `
+            <span class="text-gray-300 text-sm">Tx:</span>
+            <a href="${scanUrl}" target="_blank" class="text-blue-400 hover:underline">
+              ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}
+            </a>
+          `;
+          await tx.wait();
+          setStatus('Swap confirmed');
+          alert('Swap complete!');
+        }
 
         updateBalances();
         computeOutput();
+
       } catch (e) {
         console.error('Swap error', e);
         alert('Swap failed: ' + (e.message || e));
@@ -884,36 +854,32 @@
       }
     }
 
-    function refreshSelectors() {
-      const fromDropdown = document.getElementById('fromDropdown');
-      const toDropdown = document.getElementById('toDropdown');
-
-      // Clear existing options
-      fromDropdown.innerHTML = '';
-      toDropdown.innerHTML = '';
-
-      // Membuat token options untuk kedua dropdown + tombol salin
-      tokens.forEach(token => {
-        // Untuk FROM dropdown
-        const fromOption = document.createElement('div');
-        fromOption.className = 'token-option';
-        fromOption.innerHTML = `
-          <img src="${token.logoURI || getDefaultLogo(token.symbol)}" 
-               alt="${token.symbol}" 
-               class="token-logo-sm"
-               onerror="this.src='${getDefaultLogo(token.symbol)}'">
-          <div class="token-info">
-            <span class="token-symbol">${token.symbol}</span>
-            <span class="token-name">${token.name || token.symbol} Token</span>
-          </div>
-          <button class="copy-btn" title="Salin alamat token" onclick="event.stopPropagation(); copyAddress('${token.address}')">📋</button>
-        `;
-        fromOption.onclick = (e) => {
-          if (!e.target.classList.contains("copy-btn")) {
-            e.stopPropagation();
-            selectToken('from', token);
-          }
-        };
+    // WALLET CONNECTION HANDLERS - PERBAIKAN
+    window.handleWalletConnected = async function(address) {
+      try {
+        account = address;
+        
+        // Setup provider dan signer
+        if (window.ethereum) {
+          provider = new providers.Web3Provider(window.ethereum);
+          signer = provider.getSigner();
+        } else {
+          provider = new providers.JsonRpcProvider(RPC);
+          signer = null;
+        }
+        
+        router = new Contract(ROUTER, ROUTER_ABI, provider);
+        factory = new Contract(FACTORY, FACTORY_ABI, provider);
+        
+        setStatus('Connected');
+        await updateBalances();
+        computeOutput();
+        
+        console.log('Wallet connected via Web3Modal:', address);
+      } catch (error) {
+        console.error('Error in handleWalletConnected:', error);
+      }
+    };
         fromDropdown.appendChild(fromOption);
 
         // Untuk TO dropdown
@@ -1262,7 +1228,17 @@
     await updateBalances();
     computeOutput();
 
-    // Navigation URLs
+    // Initialize - TAMBAHKAN INI
+    provider = new providers.JsonRpcProvider(RPC);
+    router = new Contract(ROUTER, ROUTER_ABI, provider);
+    factory = new Contract(FACTORY, FACTORY_ABI, provider);
+    
+    refreshSelectors();
+    await updateBalances();
+    computeOutput();
+    initializeSwapButton();
+
+   // Navigation URLs
     const addLiquidityUrl = 'https://cozyswap.net/liquidity';
     const stakingUrl = 'https://cozyswap.net/staking';
 
@@ -1271,6 +1247,7 @@
         alert('Add Liquidity link invalid.');
       } else {
         window.location.href = addLiquidityUrl;
+
       }
     };
 
