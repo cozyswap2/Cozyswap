@@ -682,8 +682,8 @@
     }
 
     let tokens = loadTokens();
-    let selectedFromToken = tokens[0]; // XPL sebagai default
-    let selectedToToken = tokens[1];   // COZY sebagai default
+    let selectedFromToken = tokens[0];
+    let selectedToToken = tokens[1];
 
     // Helper function untuk default logo
     function getDefaultLogo(symbol) {
@@ -695,12 +695,28 @@
       return defaultLogos[symbol] || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMCIgY3k9IjEwIiByPSIxMCIgZmlsbD0iIzlmOWY5ZiIvPjwvc3ZnPg==';
     }
 
-    // ✅ FUNGSI: Initialize tombol swap
+    // ✅ FIX: Fungsi untuk mendapatkan signer yang benar
+    async function getSigner() {
+        if (!window.ethereum) {
+            throw new Error('Please connect your wallet first');
+        }
+        
+        // Gunakan window.ethereum dari Web3Modal
+        if (!provider || provider.connection.url === RPC) {
+            provider = new providers.Web3Provider(window.ethereum);
+        }
+        
+        // Dapatkan signer
+        signer = provider.getSigner();
+        return signer;
+    }
+
+    // ✅ FIX: Initialize tombol swap
     function initializeSwapButton() {
         updateSwapButton();
     }
 
-    // ✅ FUNGSI: Auto ganti button Swap ↔ Unwrap
+    // ✅ FIX: Auto ganti button Swap ↔ Unwrap
     function updateSwapButton() {
       const from = selectedFromToken.address;
       const to = selectedToToken.address;
@@ -721,20 +737,12 @@
       }
     }
 
-    // ✅ FUNGSI: Execute Unwrap WXPL → XPL
+    // ✅ FIX: Execute Unwrap WXPL → XPL
     async function executeUnwrap() {
       try {
-        if (!window.ethereum) return alert('Connect wallet first');
-        if (!signer) {
-          if (window.ethereum) {
-            provider = new providers.Web3Provider(window.ethereum);
-            signer = provider.getSigner();
-          } else {
-            return alert('Wallet not connected');
-          }
-        }
-
-        const owner = await signer.getAddress();
+        const currentSigner = await getSigner();
+        const owner = await currentSigner.getAddress();
+        
         const from = selectedFromToken.address;
         const to = selectedToToken.address;
         const amtStr = (fromAmountEl.value || '').trim();
@@ -754,7 +762,7 @@
           const wxplContract = new Contract(WXPL, [
             'function withdraw(uint wad) external',
             'function balanceOf(address) view returns (uint)'
-          ], signer);
+          ], currentSigner);
 
           const wxplBalance = await wxplContract.balanceOf(owner);
           const amountIn = utils.parseUnits(amtStr, 18);
@@ -776,7 +784,7 @@
           const wxplContract = new Contract(WXPL, [
             'function deposit() payable external',
             'function balanceOf(address) view returns (uint)'
-          ], signer);
+          ], currentSigner);
 
           const amountIn = utils.parseUnits(amtStr, 18);
           const ethBalance = await provider.getBalance(owner);
@@ -804,17 +812,12 @@
       }
     }
 
-    // ✅ FUNGSI: Execute Swap biasa
+    // ✅ FIX: Execute Swap biasa
     async function executeSwap() {
       try {
-        if (!window.ethereum) return alert('Connect wallet first');
-
-        if (!signer) {
-          provider = new providers.Web3Provider(window.ethereum);
-          signer = provider.getSigner();
-        }
-
-        const owner = await signer.getAddress();
+        const currentSigner = await getSigner();
+        const owner = await currentSigner.getAddress();
+        
         const from = selectedFromToken.address;
         const to = selectedToToken.address;
         const amtStr = (fromAmountEl.value || '').trim();
@@ -836,7 +839,7 @@
         }
 
         const path = [from === 'XPL_NATIVE' ? WXPL : from, to === 'XPL_NATIVE' ? WXPL : to];
-        const routerSigner = router.connect(signer);
+        const routerSigner = router.connect(currentSigner);
 
         if (from === 'XPL_NATIVE') {
           const amounts = await router.getAmountsOut(amountIn, path);
@@ -887,7 +890,13 @@
 
       } catch (e) {
         console.error('Swap error', e);
-        alert('Swap failed: ' + (e.message || e));
+        if (e.message?.includes('user rejected')) {
+          alert('Transaction was rejected by user');
+        } else if (e.message?.includes('insufficient funds')) {
+          alert('Insufficient funds for transaction');
+        } else {
+          alert('Swap failed: ' + (e.message || e));
+        }
         setStatus('Swap failed');
       }
     }
@@ -896,13 +905,10 @@
       const fromDropdown = document.getElementById('fromDropdown');
       const toDropdown = document.getElementById('toDropdown');
 
-      // Clear existing options
       fromDropdown.innerHTML = '';
       toDropdown.innerHTML = '';
 
-      // Membuat token options untuk kedua dropdown
       tokens.forEach(token => {
-        // Untuk FROM dropdown
         const fromOption = document.createElement('div');
         fromOption.className = 'token-option';
         fromOption.innerHTML = `
@@ -924,7 +930,6 @@
         };
         fromDropdown.appendChild(fromOption);
 
-        // Untuk TO dropdown
         const toOption = document.createElement('div');
         toOption.className = 'token-option';
         toOption.innerHTML = `
@@ -947,7 +952,6 @@
         toDropdown.appendChild(toOption);
       });
 
-      // Set default tokens
       selectToken('from', selectedFromToken);
       selectToken('to', selectedToToken);
     }
@@ -957,27 +961,21 @@
       const symbolEl = document.getElementById(`selected${type.charAt(0).toUpperCase() + type.slice(1)}Symbol`);
       const dropdownEl = document.getElementById(`${type}Dropdown`);
 
-      // Update selected token display
       logoEl.src = token.logoURI || getDefaultLogo(token.symbol);
       logoEl.onerror = function() {
         this.src = getDefaultLogo(token.symbol);
       };
       symbolEl.textContent = token.symbol;
 
-      // Close dropdown
       dropdownEl.style.display = 'none';
 
-      // Store selected tokens
       if (type === 'from') {
         selectedFromToken = token;
       } else {
         selectedToToken = token;
       }
 
-      // UPDATE BUTTON SWAP/UNWRAP
       updateSwapButton();
-
-      // Update balances dan compute output
       updateBalances();
       computeOutput();
     }
@@ -986,12 +984,11 @@
       if (statusEl) statusEl.innerText = s;
     }
 
-    // WALLET CONNECTION HANDLERS
+    // ✅ FIX: WALLET CONNECTION HANDLERS
     window.handleWalletConnected = async function(address) {
       try {
         account = address;
 
-        // Setup provider dan signer
         if (window.ethereum) {
           provider = new providers.Web3Provider(window.ethereum);
           signer = provider.getSigner();
@@ -1007,7 +1004,6 @@
         await updateBalances();
         computeOutput();
 
-        console.log('Wallet connected via Web3Modal:', address);
       } catch (error) {
         console.error('Error in handleWalletConnected:', error);
       }
@@ -1211,10 +1207,11 @@
       }
     }
 
+    // ✅ FIX: Fungsi approveToken
     async function approveToken(tokenAddr) {
       try {
-        if (!signer) throw new Error('Wallet not connected');
-        const c = new Contract(tokenAddr, ERC20, signer);
+        const currentSigner = await getSigner();
+        const c = new Contract(tokenAddr, ERC20, currentSigner);
         const tx = await c.approve(ROUTER, ethers.constants.MaxUint256);
         setStatus('Approving...');
         await tx.wait();
