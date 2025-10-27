@@ -454,16 +454,14 @@
 
 <!-- ========================= -->
 <!--  WALLETCONNECT (Web3Modal + wagmi) -->
-<!--  Paste this BEFORE the big "(async ()=>{})" script -->
 <!-- ========================= -->
 <script type="module">
   import { createWeb3Modal, defaultWagmiConfig } from "https://esm.sh/@web3modal/wagmi?bundle";
   import { getAccount, getBalance, watchAccount, disconnect } from "https://esm.sh/@wagmi/core@2.13.0";
-  import { configureChains } from "https://esm.sh/@wagmi/core@2.13.0";
   import { mainnet } from "https://esm.sh/@wagmi/core@2.13.0/chains";
   import { reconnect } from "https://esm.sh/@wagmi/core@2.13.0";
 
-  // === PLASMA CHAIN CONFIG (custom) ===
+  // === PLASMA CHAIN CONFIG ===
   const plasmaChain = {
     id: 9745,
     name: "Plasma Mainnet",
@@ -476,18 +474,21 @@
     blockExplorers: { default: { name: "PlasmaScan", url: "https://plasmascan.to" } }
   };
 
-  // WalletConnect Project ID (ganti kalau perlu)
+  // WalletConnect Project ID
   const projectId = "a9ca60975a434a874c01a34c5f7ff722";
 
-  // wagmi chains config (tambahkan plasmaChain plus mainnet as fallback)
+  // wagmi config
   const chains = [plasmaChain, mainnet];
-  // defaultWagmiConfig expects chains + projectId + connectors; using convenience helper
-  const wagmiConfig = defaultWagmiConfig({ chains, projectId, metadata: {
-    name: "CozySwap DEX",
-    description: "CozySwap — Plasma DEX",
-    url: "https://cozyswap.net/",
-    icons: ["https://avatars.githubusercontent.com/u/37784886"]
-  }});
+  const wagmiConfig = defaultWagmiConfig({ 
+    chains, 
+    projectId, 
+    metadata: {
+      name: "CozySwap DEX",
+      description: "CozySwap — Plasma DEX",
+      url: "https://cozyswap.net/",
+      icons: ["https://avatars.githubusercontent.com/u/37784886"]
+    }
+  });
 
   // create modal
   const modal = createWeb3Modal({
@@ -497,12 +498,12 @@
     enableAnalytics: false
   });
 
-  // auto reconnect if session exists
+  // auto reconnect
   reconnect(wagmiConfig);
 
-  // UI hooks (must match your page)
+  // UI elements
   const connectBtn = document.getElementById("connectBtn");
-  const infoEl = document.getElementById("info") || document.getElementById("status");
+  const statusEl = document.getElementById("status");
 
   function short(addr){ return addr ? addr.slice(0,6) + "..." + addr.slice(-4) : ""; }
 
@@ -510,65 +511,65 @@
     try {
       const acc = getAccount(wagmiConfig);
       if (acc?.address) {
+        // Update UI elements
         if (connectBtn) connectBtn.textContent = short(acc.address);
-        if (infoEl) {
+        if (statusEl) {
           try {
             const bal = await getBalance(wagmiConfig, { address: acc.address });
-            // format to human XPL
-            infoEl.textContent = ((parseFloat(bal.value) / 1e18).toFixed(4)) + " XPL • " + short(acc.address);
+            statusEl.textContent = ((parseFloat(bal.value) / 1e18).toFixed(4)) + " XPL • " + short(acc.address);
           } catch (e) {
-            infoEl.textContent = short(acc.address);
+            statusEl.textContent = short(acc.address);
           }
         }
+        
+        // Notify main app about connection
+        if (window.handleWalletConnected) {
+          window.handleWalletConnected(acc.address);
+        }
       } else {
+        // Not connected
         if (connectBtn) connectBtn.textContent = "Connect Wallet";
-        if (infoEl) infoEl.textContent = "Not connected";
+        if (statusEl) statusEl.textContent = "Not connected";
+        
+        // Notify main app about disconnection
+        if (window.handleWalletDisconnected) {
+          window.handleWalletDisconnected();
+        }
       }
-    } catch (e) { console.warn("updateWalletUI", e); }
+    } catch (e) { 
+      console.warn("updateWalletUI", e); 
+    }
   }
 
-  // watch for account changes
-  watchAccount(wagmiConfig, updateWalletUI);
+  // Watch for account changes
+  watchAccount(wagmiConfig, { onChange: updateWalletUI });
 
-  // connect button handler (opens modal). After connect, call window.ensureProvider (your script's function)
-  connectBtn?.addEventListener("click", async () => {
+  // Connect button handler
+  connectBtn.addEventListener("click", async () => {
     try {
       const acc = getAccount(wagmiConfig);
       if (acc?.address) {
-        // already connected via modal/wagmi -> disconnect
+        // Already connected - disconnect
         await disconnect(wagmiConfig);
-        await updateWalletUI();
-        // let main script re-evaluate provider
-        if (typeof window.ensureProvider === "function") {
-          try { await window.ensureProvider(); } catch (e) { console.warn(e); }
-        }
-        return;
+      } else {
+        // Open modal for connection
+        modal.open();
       }
-      // open modal for user to pick wallet (MetaMask, WalletConnect, etc.)
-      modal.open();
-
-      // after modal operation, allow some time then ask main script to hook provider
-      setTimeout(async () => {
-        if (typeof window.ensureProvider === "function") {
-          try {
-            await window.ensureProvider();
-            if (typeof window.updateBalances === "function") await window.updateBalances();
-            if (typeof window.computeOutput === "function") await window.computeOutput();
-          } catch (e) { console.warn("ensureProvider error:", e); }
-        }
-        await updateWalletUI();
-      }, 900);
-    } catch (e) { console.error("connectBtn handler", e); }
+    } catch (e) { 
+      console.error("connectBtn handler", e); 
+    }
   });
 
-  // expose helper for debugging
-  window.__cozy_w3m_modal = modal;
+  // Initial update
+  updateWalletUI();
+
+  // Expose for main app
+  window.web3modal = modal;
   window.updateWalletUI = updateWalletUI;
 </script>
 <!-- ========================= -->
 <!-- END WALLETCONNECT MODULE -->
 <!-- ========================= -->
-
 
   <script>
   (async ()=>{
@@ -977,110 +978,52 @@
       if (statusEl) statusEl.innerText = s;
     }
 
-    // WALLET CONNECTION
-    async function ensureProvider() {
-      if (window.ethereum) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: CHAIN_ID_HEX }]
-          });
-        } catch (switchError) {
-          if (switchError.code === 4902) {
-            try {
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                  chainId: CHAIN_ID_HEX,
-                  chainName: 'Plasma Chain',
-                  rpcUrls: [RPC],
-                  nativeCurrency: {
-                    name: 'XPL',
-                    symbol: 'XPL',
-                    decimals: 18
-                  },
-                  blockExplorerUrls: ['https://plasmascan.to/']
-                }]
-              });
-            } catch (addError) {
-              console.warn('Failed to add chain:', addError);
-            }
-          }
-        }
-
-        provider = new providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner();
-        router = new Contract(ROUTER, ROUTER_ABI, provider);
-        factory = new Contract(FACTORY, FACTORY_ABI, provider);
-
-        try {
-          const accounts = await provider.listAccounts();
-          if (accounts && accounts.length > 0) {
-            account = accounts[0];
-            connectBtn.innerText = account.substring(0, 6) + '...' + account.substring(38);
-            setStatus('Connected');
-            await updateBalances();
-          } else {
-            setStatus('Ready to connect');
-          }
-        } catch (e) {
-          console.warn('Account check failed:', e);
-          setStatus('Ready to connect');
-        }
-      } else {
-        provider = new providers.JsonRpcProvider(RPC);
-        router = new Contract(ROUTER, ROUTER_ABI, provider);
-        factory = new Contract(FACTORY, FACTORY_ABI, provider);
-        setStatus('Read-only mode');
-      }
-    }
-
-    // CONNECT BUTTON (REPLACED — handled by Web3Modal module)
-connectBtn.onclick = async () => {
-  // If Web3Modal module is present, let it handle connection.
-  if (window.__cozy_w3m_modal) {
-    // do nothing — module will open modal
-    return;
-  }
-  // Fallback: old behavior (injected provider)
-  try {
-    await ensureProvider();
-  } catch (e) { console.warn('Fallback ensureProvider failed', e); }
-};
-
-
+    // WALLET CONNECTION HANDLERS
+    window.handleWalletConnected = async function(address) {
       try {
-        const accounts = await window.ethereum.request({
-          method: 'eth_requestAccounts'
-        });
-
-        if (accounts && accounts.length > 0) {
-          account = accounts[0];
+        account = address;
+        
+        // Setup provider dan signer
+        if (window.ethereum) {
           provider = new providers.Web3Provider(window.ethereum);
           signer = provider.getSigner();
-          router = router.connect(signer);
-
-          connectBtn.innerText = account.substring(0, 6) + '...' + account.substring(38);
-          setStatus('Connected');
-
-          await updateBalances();
-          await computeOutput();
-
-          console.log('Wallet connected successfully:', account);
-        }
-      } catch (error) {
-        console.error('Connection failed:', error);
-        if (error.code === 4001) {
-          setStatus('Connection rejected');
-          alert('Please connect your wallet to use CozySwap.');
         } else {
-          setStatus('Connection failed');
-          alert('Connection failed: ' + (error.message || error));
+          provider = new providers.JsonRpcProvider(RPC);
         }
+        
+        router = new Contract(ROUTER, ROUTER_ABI, provider);
+        factory = new Contract(FACTORY, FACTORY_ABI, provider);
+        
+        setStatus('Connected');
+        await updateBalances();
+        computeOutput();
+        
+        console.log('Wallet connected via Web3Modal:', address);
+      } catch (error) {
+        console.error('Error in handleWalletConnected:', error);
       }
     };
 
-    
+    window.handleWalletDisconnected = function() {
+      account = null;
+      signer = null;
+      setStatus('Disconnected');
+      updateBalances();
+      computeOutput();
+    };
+
+    // CONNECT BUTTON - Handled by Web3Modal
+    connectBtn.onclick = async () => {
+      // Web3Modal will handle the connection
+      // The modal.open() is called in the Web3Modal module
+    };
+
+    addTokenBtn.onclick = async () => {
+      const addr = prompt('Enter token contract address:');
+      if (!addr) return;
+      if (!utils.isAddress(addr)) return alert('Invalid address');
+      if (tokens.some(t => t.address.toLowerCase() === addr.toLowerCase())) return alert('Token already exists');
+
       const c = new Contract(addr, ERC20, provider || new providers.JsonRpcProvider(RPC));
       let sym = 'TOKEN'; 
       try { 
@@ -1098,13 +1041,6 @@ connectBtn.onclick = async () => {
     async function updateBalances() {
       try {
         if (!provider) return;
-        if (!account) {
-          if (provider.listAccounts) {
-            const accts = await provider.listAccounts();
-            account = accts && accts[0];
-          }
-        }
-
         if (!account) {
           fromBalanceEl.innerText = '-';
           toBalanceEl.innerText = '-';
@@ -1318,7 +1254,10 @@ connectBtn.onclick = async () => {
     }, 1500);
 
     // Initialize
-    await ensureProvider();
+    provider = new providers.JsonRpcProvider(RPC);
+    router = new Contract(ROUTER, ROUTER_ABI, provider);
+    factory = new Contract(FACTORY, FACTORY_ABI, provider);
+    
     refreshSelectors();
     await updateBalances();
     computeOutput();
